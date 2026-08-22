@@ -26,3 +26,17 @@
   selection and un-narrowed Express route parameters, which failed strict
   compilation. It was replaced with explicit parameter validation and a direct
   room lookup for the booking's venue before authorization.
+
+## Room Availability and Search
+
+- Delegated to Copilot: implement the authenticated cross-venue room search,
+  PostgreSQL interval query, filter validation, and focused integration tests.
+- Initial implementation: the query used Prisma `$queryRaw`, the existing
+  `protected_slot` GiST index, active booking states, and JSONB containment for
+  all requested amenities.
+- Review outcome: confirmed that availability stays in PostgreSQL and does not
+  load bookings into Node. Added real Neon-backed fixtures and tests for every
+  blocking/non-blocking status, turnaround boundaries, combined filters, and
+  cross-venue results. No benchmark numbers were fabricated.
+- Index decision: reused the existing active-room GiST index on
+  `bookings.protected_slot`; no broad or redundant indexes were added.

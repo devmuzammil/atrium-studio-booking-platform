@@ -35,6 +35,18 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
+enum PaygateChargeStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum PaygateRefundStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
 enum PaymentEventType {
   CHARGE_SUCCEEDED
   CHARGE_FAILED
@@ -208,7 +220,38 @@ model Payment {
   refunds          Refund[]
 
   @@index([bookingId])
+  @@unique([bookingId])
   @@map("payments")
+}
+
+model PaygateCharge {
+  id             String              @id @default(uuid()) @db.Uuid
+  chargeId       String              @unique @map("charge_id")
+  idempotencyKey String              @unique @map("idempotency_key")
+  reference      String              @map("booking_reference")
+  amountMinor    Int                 @map("amount_minor")
+  currency       String
+  status         PaygateChargeStatus @default(PROCESSING)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  refunds        PaygateRefund[]
+
+  @@index([reference])
+  @@map("paygate_charges")
+}
+
+model PaygateRefund {
+  id             String              @id @default(uuid()) @db.Uuid
+  refundId       String              @unique @map("refund_id")
+  idempotencyKey String              @unique @map("idempotency_key")
+  chargeId       String              @map("charge_id")
+  amountMinor    Int                 @map("amount_minor")
+  status         PaygateRefundStatus @default(PROCESSING)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  charge         PaygateCharge       @relation(fields: [chargeId], references: [chargeId])
+
+  @@map("paygate_refunds")
 }
 
 model PaymentEvent {

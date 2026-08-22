@@ -65,3 +65,28 @@
 - Test correction: the initial turnaround fixture used a 15-minute start that
   violated the separate 30-minute booking-granularity rule; it now uses the
   next valid half-hour boundary.
+
+## Payment and Paygate
+
+- Delegated to Copilot: implement the mock Paygate charge/refund endpoints,
+  HMAC webhook path, payment start flow, durable idempotency, duplicate
+  delivery handling, and late-expiry refund foundation.
+- Initial implementation: provider and Atrium records use unique database
+  idempotency/provider keys; webhook processing locks payment rows before
+  applying the centralized booking transition.
+- Corrections recorded: an attempted Paygate-to-payment one-to-one relation was
+  removed because unknown charges must be persisted before a local payment
+  exists. The old payment-event foreign key was removed in a migration for the
+  same reason. A route-order bug that authenticated the webhook was corrected,
+  and an expiry path was changed from an illegal direct `PENDING_PAYMENT ->
+  REFUNDED` jump to `PENDING_PAYMENT -> EXPIRED -> REFUNDED`.
+- Review outcome: provider failures now leave ambiguous payment attempts
+  `PROCESSING`/retryable, rather than incorrectly transitioning bookings to
+  `FAILED`; retrying the same idempotency key can therefore recover without a
+  duplicate charge. Raw webhook bytes, database row locks, and unique
+  delivery/business keys remain authoritative.
+- Test issues discovered: remote Neon lock contention once exceeded the
+  default interactive transaction timeout, so webhook processing now retries
+  only transient Prisma transaction errors. Test cleanup also had to include
+  unknown provider-event fixtures. These changes preserve database-level
+  idempotency rather than hiding concurrency failures with mocks.

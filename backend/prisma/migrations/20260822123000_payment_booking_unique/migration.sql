@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "payments_booking_id_key" ON "payments"("booking_id");

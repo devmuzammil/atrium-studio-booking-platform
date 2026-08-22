@@ -142,14 +142,14 @@ export async function processPaymentWebhook(
 export function localPaymentProvider(database: PrismaClient): PaymentProvider {
   return {
     charge: async (input) => {
-      const baseUrl = process.env.PAYGATE_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const baseUrl = process.env.PAYGATE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
       const response = await fetch(`${baseUrl}/paygate/charges`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey }, body: JSON.stringify({ amount_minor: input.amountMinor, currency: input.currency, reference: input.reference }) });
       if (!response.ok) throw new Error('Paygate charge request failed');
       const body = await response.json() as { charge_id: string };
       return { chargeId: body.charge_id };
     },
     refund: async (input) => {
-      const baseUrl = process.env.PAYGATE_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const baseUrl = process.env.PAYGATE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
       const response = await fetch(`${baseUrl}/paygate/refunds`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey }, body: JSON.stringify({ charge_id: input.chargeId, amount_minor: input.amountMinor }) });
       if (!response.ok) throw new Error('Paygate refund request failed');
       const body = await response.json() as { refund_id: string };

@@ -1,0 +1,33 @@
+# Render Hobby blueprint for the Atrium API.
+# Does not provision a paid database. Paste a Neon (or other free Postgres) URL.
+
+services:
+  - type: web
+    name: atrium-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: RUN_WORKER
+        value: "true"
+      - key: HOLD_EXPIRY_POLL_MS
+        value: "2000"
+      - key: INSTANCE_ID
+        value: render
+      - key: PAYGATE_CHAOS
+        value: "on"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYGATE_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false

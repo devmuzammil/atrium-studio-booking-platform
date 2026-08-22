@@ -26,6 +26,7 @@ interface AppDependencies {
 
 export function createApp(dependencies: AppDependencies = {}): Express {
   const app = express();
+  app.set('trust proxy', 1);
   const database = dependencies.database || (prisma as unknown as PrismaClient & HealthDatabase);
   const paygateHealth = dependencies.paygateHealth || prisma.paygateCharge;
   const instanceId = process.env.INSTANCE_ID || 'local';

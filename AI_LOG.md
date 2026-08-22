@@ -125,3 +125,14 @@
   is real rather than client-side token minting.
 - Docker: frontend container proxies `/api` and `/health` through the existing
   Nginx load balancer so the browser never addresses api1/api2/api3 directly.
+
+## Render backend packaging
+
+- Delegated: make the API bootable on Render Hobby without a paid database.
+- Choices: Node web service with `rootDir=backend`, migrate-on-start, listen on
+  `0.0.0.0`, and in-process hold expiry instead of a second Render worker.
+- Correction: Paygate loopback defaults used `localhost`, which can resolve to
+  IPv6 (`::1`) while the server binds IPv4. Defaults are now `127.0.0.1:$PORT`.
+- Prisma CLI moved to production dependencies so `migrate deploy` survives
+  `npm prune --omit=dev`. Demo seed is documented as a local one-off against
+  Neon, not part of the Render start command.

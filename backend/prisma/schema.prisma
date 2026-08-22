@@ -6,3 +6,272 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum UserRole {
+  CUSTOMER
+  VENUE_STAFF
+  VENUE_ADMIN
+  PLATFORM_ADMIN
+}
+
+enum BookingStatus {
+  DRAFT
+  HELD
+  PENDING_PAYMENT
+  CONFIRMED
+  COMPLETED
+  EXPIRED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  CREATED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentEventType {
+  CHARGE_SUCCEEDED
+  CHARGE_FAILED
+  UNKNOWN
+}
+
+enum InventoryType {
+  ROOM
+  EQUIPMENT
+}
+
+enum AuditEventType {
+  BOOKING_STATE_TRANSITION
+  PAYMENT_EVENT
+  REFUND_EVENT
+  ADMIN_ACTION
+}
+
+model User {
+  id           String          @id @default(uuid()) @db.Uuid
+  email        String          @unique
+  passwordHash String          @map("password_hash")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  roles        UserVenueRole[]
+  bookings     Booking[]
+  auditEvents  AuditEvent[]
+
+  @@map("users")
+}
+
+model Venue {
+  id                   String               @id @default(uuid()) @db.Uuid
+  name                 String
+  city                 String
+  timezone             String
+  operatingSchedule    Json                 @map("operating_schedule")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+  rooms                Room[]
+  equipmentTypes       EquipmentType[]
+  userRoles            UserVenueRole[]
+  cancellationPolicies CancellationPolicy[]
+
+  @@index([city])
+  @@map("venues")
+}
+
+model UserVenueRole {
+  userId    String   @map("user_id") @db.Uuid
+  venueId   String   @map("venue_id") @db.Uuid
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@id([userId, venueId, role])
+  @@index([venueId, role])
+  @@map("user_venue_roles")
+}
+
+model Room {
+  id                 String    @id @default(uuid()) @db.Uuid
+  venueId            String    @map("venue_id") @db.Uuid
+  name               String
+  capacity           Int
+  hourlyRateMinor    Int       @map("hourly_rate_minor")
+  currency           String    @default("PKR")
+  amenities          Json
+  minDurationMinutes Int       @default(60) @map("min_duration_minutes")
+  maxDurationMinutes Int       @default(480) @map("max_duration_minutes")
+  overbookingPercent Int       @default(0) @map("overbooking_percent")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  venue              Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  bookings           Booking[]
+
+  @@index([venueId, capacity, hourlyRateMinor])
+  @@map("rooms")
+}
+
+model EquipmentType {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  venueId            String                 @map("venue_id") @db.Uuid
+  name               String
+  hourlyRateMinor    Int                    @map("hourly_rate_minor")
+  currency           String                 @default("PKR")
+  totalUnits         Int                    @map("total_units")
+  overbookingPercent Int                    @default(0) @map("overbooking_percent")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  venue              Venue                  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  lineItems          BookingLineItem[]
+  reservations       InventoryReservation[]
+
+  @@index([venueId])
+  @@map("equipment_types")
+}
+
+model Booking {
+  id               String                   @id @default(uuid()) @db.Uuid
+  userId           String                   @map("user_id") @db.Uuid
+  roomId           String                   @map("room_id") @db.Uuid
+  slot             Unsupported("tstzrange")
+  protectedSlot    Unsupported("tstzrange") @map("protected_slot")
+  status           BookingStatus            @default(DRAFT)
+  amountMinor      Int                      @map("amount_minor")
+  currency         String                   @default("PKR")
+  pricingSnapshot  Json                     @map("pricing_snapshot")
+  policySnapshot   Json                     @map("policy_snapshot")
+  holdExpiresAt    DateTime?                @map("hold_expires_at")
+  checkoutDeadline DateTime?                @map("checkout_deadline")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  user             User                     @relation(fields: [userId], references: [id])
+  room             Room                     @relation(fields: [roomId], references: [id])
+  lineItems        BookingLineItem[]
+  reservations     InventoryReservation[]
+  payments         Payment[]
+  auditEvents      AuditEvent[]
+  refunds          Refund[]
+
+  @@index([status, holdExpiresAt])
+  @@index([roomId])
+  @@map("bookings")
+}
+
+model BookingLineItem {
+  id              String        @id @default(uuid()) @db.Uuid
+  bookingId       String        @map("booking_id") @db.Uuid
+  equipmentTypeId String        @map("equipment_type_id") @db.Uuid
+  quantity        Int
+  unitRateMinor   Int           @map("unit_rate_minor")
+  currency        String        @default("PKR")
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  equipmentType   EquipmentType @relation(fields: [equipmentTypeId], references: [id])
+
+  @@unique([bookingId, equipmentTypeId])
+  @@index([equipmentTypeId])
+  @@map("booking_line_items")
+}
+
+model InventoryReservation {
+  id              String                   @id @default(uuid()) @db.Uuid
+  bookingId       String                   @map("booking_id") @db.Uuid
+  inventoryType   InventoryType            @map("inventory_type")
+  equipmentTypeId String?                  @map("equipment_type_id") @db.Uuid
+  quantity        Int                      @default(1)
+  slot            Unsupported("tstzrange")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  booking         Booking                  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  equipmentType   EquipmentType?           @relation(fields: [equipmentTypeId], references: [id])
+
+  @@index([equipmentTypeId])
+  @@index([bookingId])
+  @@map("inventory_reservations")
+}
+
+model Payment {
+  id               String         @id @default(uuid()) @db.Uuid
+  bookingId        String         @map("booking_id") @db.Uuid
+  idempotencyKey   String         @unique @map("idempotency_key")
+  providerChargeId String?        @unique @map("provider_charge_id")
+  amountMinor      Int            @map("amount_minor")
+  currency         String
+  status           PaymentStatus  @default(CREATED)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  booking          Booking        @relation(fields: [bookingId], references: [id])
+  events           PaymentEvent[]
+  refunds          Refund[]
+
+  @@index([bookingId])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id                 String           @id @default(uuid()) @db.Uuid
+  providerDeliveryId String           @unique @map("provider_delivery_id")
+  providerChargeId   String?          @map("provider_charge_id")
+  event              PaymentEventType
+  payload            Json
+  signatureValid     Boolean          @map("signature_valid")
+  occurredAt         DateTime?        @map("occurred_at")
+  processedAt        DateTime?        @map("processed_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  payment            Payment?         @relation(fields: [providerChargeId], references: [providerChargeId])
+
+  @@index([providerChargeId])
+  @@map("payment_events")
+}
+
+model AuditEvent {
+  id         String         @id @default(uuid()) @db.Uuid
+  bookingId  String?        @map("booking_id") @db.Uuid
+  actorId    String?        @map("actor_id") @db.Uuid
+  type       AuditEventType
+  fromStatus BookingStatus? @map("from_status")
+  toStatus   BookingStatus? @map("to_status")
+  reason     String
+  metadata   Json?
+  occurredAt DateTime       @default(now()) @map("occurred_at")
+  booking    Booking?       @relation(fields: [bookingId], references: [id])
+  actor      User?          @relation(fields: [actorId], references: [id])
+
+  @@index([bookingId, occurredAt])
+  @@map("audit_events")
+}
+
+model CancellationPolicy {
+  id        String   @id @default(uuid()) @db.Uuid
+  venueId   String   @map("venue_id") @db.Uuid
+  version   Int      @default(1)
+  tiers     Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, active])
+  @@map("cancellation_policies")
+}
+
+model Refund {
+  id               String        @id @default(uuid()) @db.Uuid
+  bookingId        String        @map("booking_id") @db.Uuid
+  paymentId        String        @map("payment_id") @db.Uuid
+  idempotencyKey   String        @unique @map("idempotency_key")
+  providerRefundId String?       @unique @map("provider_refund_id")
+  amountMinor      Int           @map("amount_minor")
+  currency         String
+  status           PaymentStatus @default(PROCESSING)
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  booking          Booking       @relation(fields: [bookingId], references: [id])
+  payment          Payment       @relation(fields: [paymentId], references: [id])
+
+  @@index([bookingId])
+  @@map("refunds")
+}

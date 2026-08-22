@@ -7,6 +7,7 @@ import { AuthDependencies } from './middleware/auth';
 import { createPaymentRoutes } from './routes/paymentRoutes';
 import { PaymentProvider } from './services/paymentService';
 import { requestContext } from './middleware/requestContext';
+import { getConfig } from './config/env';
 
 export interface HealthDatabase {
   $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
@@ -27,6 +28,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const app = express();
   const database = dependencies.database || (prisma as unknown as PrismaClient & HealthDatabase);
   const paygateHealth = dependencies.paygateHealth || prisma.paygateCharge;
+  const instanceId = process.env.INSTANCE_ID || getConfig().instanceId;
 
   app.use(express.json({
     verify: (request, _response, buffer) => {
@@ -42,8 +44,10 @@ export function createApp(dependencies: AppDependencies = {}): Express {
     try {
       await database.$queryRaw`SELECT 1`;
       await paygateHealth.count();
+      response.setHeader('x-instance-id', instanceId);
       response.status(200).json({ status: 'ok', dependencies: { postgres: 'ok', paygate: 'ok' } });
     } catch (error) {
+      response.setHeader('x-instance-id', instanceId);
       response.status(503).json({ status: 'unhealthy', dependencies: { postgres: 'unavailable', paygate: 'unavailable' } });
     }
   });

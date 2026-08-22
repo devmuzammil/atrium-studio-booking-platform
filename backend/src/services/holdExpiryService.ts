@@ -76,7 +76,7 @@ export async function expireDueHolds(
       }
 
       return expireClaimedHold(transaction, claimed[0].id, now);
-    }, { timeout: 15000 });
+    }, { timeout: 60000 });
 
     if (!result) {
       break;
@@ -95,5 +95,5 @@ export async function expireHold(
   bookingId: string,
   now = new Date(),
 ): Promise<ExpiryResult> {
-  return database.$transaction(async (transaction) => expireClaimedHold(transaction, bookingId, now), { timeout: 15000 });
+  return database.$transaction(async (transaction) => expireClaimedHold(transaction, bookingId, now), { timeout: 60000 });
 }

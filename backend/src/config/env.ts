@@ -4,11 +4,13 @@ export interface AppConfig {
   port: number;
   databaseUrl: string;
   jwtSecret: string;
+  instanceId: string;
 }
 
 export function getConfig(): AppConfig {
   const databaseUrl = process.env.DATABASE_URL;
   const jwtSecret = process.env.JWT_SECRET;
+  const instanceId = process.env.INSTANCE_ID || 'local';
 
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
@@ -23,5 +25,5 @@ export function getConfig(): AppConfig {
     throw new Error('PORT must be an integer between 1 and 65535');
   }
 
-  return { port, databaseUrl, jwtSecret };
+  return { port, databaseUrl, jwtSecret, instanceId };
 }

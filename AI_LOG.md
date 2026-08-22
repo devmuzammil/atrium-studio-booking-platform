@@ -10,3 +10,19 @@
   task added a pure central transition map plus a Prisma transaction service.
   No incorrect implementation was retained, no controller or scattered direct
   status mutation was added, and the architecture/schema were not changed.
+
+## Authentication and Tenant Isolation
+
+- Delegated to Copilot: inspect the existing schema and add the focused JWT
+  authentication, centralized role/venue policies, resource reads, and required
+  cross-venue API tests.
+- Reviewed: role assignments are loaded from Prisma after token verification;
+  venue IDs in requests are never treated as authorization evidence. Booking
+  ownership and the target room's venue are checked server-side.
+- Review outcome: no schema or architecture change was necessary. Resource
+  controllers remain thin and delegate access decisions to shared policies;
+  no frontend-only or process-local authorization was introduced.
+- Correction recorded: an initial controller version used a nested Prisma
+  selection and un-narrowed Express route parameters, which failed strict
+  compilation. It was replaced with explicit parameter validation and a direct
+  room lookup for the booking's venue before authorization.

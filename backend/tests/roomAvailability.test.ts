@@ -96,7 +96,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.$executeRaw(Prisma.sql`DELETE FROM bookings WHERE user_id = ${customerId}::uuid`);
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
   await prisma.room.deleteMany({ where: { id: { in: [roomAId, roomBId] } } });
   await prisma.venue.deleteMany({ where: { id: { in: [venueAId, venueBId] } } });
   await prisma.user.delete({ where: { id: customerId } });
@@ -104,7 +104,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  await prisma.$executeRaw(Prisma.sql`DELETE FROM bookings WHERE user_id = ${customerId}::uuid`);
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
 });
 
 describe('room availability and cross-venue search', () => {

@@ -68,7 +68,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await prisma.$executeRaw(Prisma.sql`DELETE FROM bookings WHERE user_id = ${userId}::uuid`);
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
 });
 
 afterAll(async () => {

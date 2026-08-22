@@ -75,10 +75,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await prisma.$executeRaw(Prisma.sql`DELETE FROM payment_events WHERE provider_charge_id IN ('ch_payment_test', 'ch_unknown')`);
-  await prisma.refund.deleteMany({ where: { booking: { userId } } });
-  await prisma.payment.deleteMany({ where: { booking: { userId } } });
-  await prisma.$executeRaw(Prisma.sql`DELETE FROM bookings WHERE user_id IN (${userId}::uuid, ${otherUserId}::uuid)`);
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
   await prisma.paygateCharge.deleteMany({ where: { reference: { not: '' } } });
   jest.clearAllMocks();
 });

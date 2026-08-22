@@ -41,10 +41,14 @@ export class InventoryUnavailableError extends Error {
 }
 
 function isConcurrencyConflict(error: unknown): boolean {
-  const code = typeof error === 'object' && error !== null && 'code' in error
-    ? (error as { code?: unknown }).code
-    : undefined;
-  return (error instanceof Error && error.message.includes('23P01')) || code === 'P2034';
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const databaseError = error as { code?: unknown; message?: unknown; meta?: { code?: unknown; message?: unknown } };
+  const values = [databaseError.code, databaseError.message, databaseError.meta?.code, databaseError.meta?.message];
+  return values.some((value) => typeof value === 'string'
+    && (value === 'P2034' || value.includes('23P01') || value.includes('40001') || value.includes('40P01') || value.includes('55P03')));
 }
 
 function localTimeParts(date: Date, timezone: string): { day: string; time: string } {
@@ -283,7 +287,11 @@ export async function createBookingHold(
     });
 
       return { id: bookingId, status: BookingStatus.HELD, holdExpiresAt, checkoutDeadline, amountMinor, currency };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      timeout: 60000,
+      maxWait: 60000,
+    });
   } catch (error) {
     if (isConcurrencyConflict(error)) {
       throw new InventoryUnavailableError('room is unavailable for the requested interval');

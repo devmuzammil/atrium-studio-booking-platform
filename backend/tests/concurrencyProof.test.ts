@@ -35,6 +35,7 @@ async function postHold(targetRoomId: string, equipment: Array<{ equipmentTypeId
     const conflicts = responses.filter((response) => response.status === 409);
     const unexpected = responses.filter((response) => ![201, 409].includes(response.status));
 
+    console.log('Room proof counts', { successes: successes.length, conflicts: conflicts.length, unexpected: unexpected.length, samples: unexpected.slice(0, 5) });
     expect(successes).toHaveLength(1);
     expect(conflicts).toHaveLength(199);
     expect(unexpected).toHaveLength(0);
@@ -50,6 +51,7 @@ async function postHold(targetRoomId: string, equipment: Array<{ equipmentTypeId
     const conflicts = responses.filter((response) => response.status === 409);
     const unexpected = responses.filter((response) => ![201, 409].includes(response.status));
 
+    console.log('Equipment proof counts', { successes: successes.length, conflicts: conflicts.length, unexpected: unexpected.length, samples: JSON.stringify(unexpected.slice(0, 5)) });
     expect(successes.length).toBeLessThanOrEqual(3);
     expect(conflicts.length + successes.length).toBe(200);
     expect(unexpected).toHaveLength(0);

@@ -46,7 +46,6 @@ afterAll(async () => {
   await prisma.room.delete({ where: { id: roomId } });
   await prisma.venue.delete({ where: { id: venueId } });
   await prisma.user.delete({ where: { id: userId } });
-  await prisma.$disconnect();
 });
 
 describe('hold expiry worker', () => {

@@ -7,7 +7,7 @@ import { AuthDependencies } from './middleware/auth';
 import { createPaymentRoutes } from './routes/paymentRoutes';
 import { PaymentProvider } from './services/paymentService';
 import { requestContext } from './middleware/requestContext';
-import { getConfig } from './config/env';
+import { createAuthRoutes } from './controllers/authController';
 
 export interface HealthDatabase {
   $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
@@ -28,7 +28,20 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const app = express();
   const database = dependencies.database || (prisma as unknown as PrismaClient & HealthDatabase);
   const paygateHealth = dependencies.paygateHealth || prisma.paygateCharge;
-  const instanceId = process.env.INSTANCE_ID || getConfig().instanceId;
+  const instanceId = process.env.INSTANCE_ID || 'local';
+
+  app.use((request, response, next) => {
+    const origin = process.env.CORS_ORIGIN || '*';
+    response.setHeader('Access-Control-Allow-Origin', origin);
+    response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-Request-ID');
+    response.setHeader('Access-Control-Expose-Headers', 'x-request-id, x-instance-id');
+    response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    if (request.method === 'OPTIONS') {
+      response.status(204).end();
+      return;
+    }
+    next();
+  });
 
   app.use(express.json({
     verify: (request, _response, buffer) => {
@@ -37,10 +50,11 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   }));
   app.use(requestContext);
 
+  app.use('/api/auth', createAuthRoutes(dependencies.auth));
   app.use(createPaymentRoutes(dependencies.auth, dependencies.paymentProvider));
   app.use('/api', createResourceRoutes(dependencies.auth));
 
-  app.get('/health', async (_request, response, next) => {
+  app.get('/health', async (_request, response) => {
     try {
       await database.$queryRaw`SELECT 1`;
       await paygateHealth.count();

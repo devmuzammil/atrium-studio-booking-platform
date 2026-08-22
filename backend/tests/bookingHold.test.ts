@@ -46,6 +46,25 @@ function hold(payload: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
+  await prisma.$executeRaw(Prisma.sql`
+    TRUNCATE TABLE
+      audit_events,
+      paygate_refunds,
+      paygate_charges,
+      payment_events,
+      payments,
+      refunds,
+      inventory_reservations,
+      booking_line_items,
+      bookings,
+      cancellation_policies,
+      user_venue_roles,
+      equipment_types,
+      rooms,
+      venues,
+      users
+    RESTART IDENTITY CASCADE;
+  `);
   await prisma.user.create({ data: { id: userId, email: `${userId}@hold.test`, passwordHash: 'test' } });
   await prisma.venue.create({
     data: { id: venueId, name: 'Hold Venue', city: 'Karachi', timezone: 'UTC', operatingSchedule: allDaySchedule },
@@ -68,15 +87,30 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, paygate_refunds, paygate_charges, payment_events, payments, refunds, inventory_reservations, booking_line_items, bookings, cancellation_policies, user_venue_roles, equipment_types, rooms, venues, users RESTART IDENTITY CASCADE;`);
+  await prisma.user.create({ data: { id: userId, email: `${userId}@hold.test`, passwordHash: 'test' } });
+  await prisma.venue.create({
+    data: { id: venueId, name: 'Hold Venue', city: 'Karachi', timezone: 'UTC', operatingSchedule: allDaySchedule },
+  });
+  await prisma.venue.create({
+    data: { id: otherVenueId, name: 'Other Venue', city: 'Dubai', timezone: 'UTC', operatingSchedule: allDaySchedule },
+  });
+  await prisma.room.create({
+    data: { id: roomId, venueId, name: 'Hold Room', capacity: 4, hourlyRateMinor: 1000, amenities: [] },
+  });
+  await prisma.room.create({
+    data: { id: otherRoomId, venueId: otherVenueId, name: 'Other Room', capacity: 4, hourlyRateMinor: 1000, amenities: [] },
+  });
+  await prisma.equipmentType.create({
+    data: { id: equipmentId, venueId, name: 'Camera', hourlyRateMinor: 100, totalUnits: 3, overbookingPercent: 0 },
+  });
+  await prisma.equipmentType.create({
+    data: { id: otherEquipmentId, venueId: otherVenueId, name: 'Other Camera', hourlyRateMinor: 100, totalUnits: 3, overbookingPercent: 0 },
+  });
 });
 
 afterAll(async () => {
-  await prisma.equipmentType.deleteMany({ where: { id: { in: [equipmentId, otherEquipmentId] } } });
-  await prisma.room.deleteMany({ where: { id: { in: [roomId, otherRoomId] } } });
-  await prisma.venue.deleteMany({ where: { id: { in: [venueId, otherVenueId] } } });
-  await prisma.user.delete({ where: { id: userId } });
-  await prisma.$disconnect();
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, paygate_refunds, paygate_charges, payment_events, payments, refunds, inventory_reservations, booking_line_items, bookings, cancellation_policies, user_venue_roles, equipment_types, rooms, venues, users RESTART IDENTITY CASCADE;`);
 });
 
 describe('POST /api/bookings/holds', () => {

@@ -1,5 +1,6 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { hashPassword } from '../src/services/passwordService';
 
 const prisma = new PrismaClient();
 const profiles = {
@@ -9,6 +10,8 @@ const profiles = {
 
 type ProfileName = keyof typeof profiles;
 
+const DEMO_PASSWORD = 'Password123!';
+
 function chunk<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
   for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
@@ -17,6 +20,58 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 function distribute(total: number, count: number, index: number): number {
   return Math.floor(total / count) + (index < total % count ? 1 : 0);
+}
+
+async function seedDemoAccounts(venueAId: string, venueBId: string): Promise<void> {
+  const passwordHash = hashPassword(DEMO_PASSWORD);
+  const accounts = [
+    { id: randomUUID(), email: 'customer@atrium.local', roles: [{ role: UserRole.CUSTOMER, venueId: venueAId }] },
+    { id: randomUUID(), email: 'staff@atrium.local', roles: [{ role: UserRole.VENUE_STAFF, venueId: venueAId }] },
+    { id: randomUUID(), email: 'admin-a@atrium.local', roles: [{ role: UserRole.VENUE_ADMIN, venueId: venueAId }] },
+    { id: randomUUID(), email: 'admin-b@atrium.local', roles: [{ role: UserRole.VENUE_ADMIN, venueId: venueBId }] },
+    { id: randomUUID(), email: 'platform@atrium.local', roles: [{ role: UserRole.PLATFORM_ADMIN, venueId: venueAId }] },
+  ];
+
+  for (const account of accounts) {
+    await prisma.user.upsert({
+      where: { email: account.email },
+      create: { id: account.id, email: account.email, passwordHash },
+      update: { passwordHash },
+    });
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: account.email } });
+    await prisma.userVenueRole.deleteMany({ where: { userId: user.id } });
+    await prisma.userVenueRole.createMany({
+      data: account.roles.map((role) => ({ userId: user.id, venueId: role.venueId, role: role.role })),
+    });
+  }
+
+  await prisma.cancellationPolicy.createMany({
+    data: [
+      {
+        venueId: venueAId,
+        version: 1,
+        active: true,
+        tiers: {
+          moreThan48: { roomPercent: 100, equipmentPercent: 100 },
+          between24And48: { roomPercent: 50, equipmentPercent: 100 },
+          lessThan24: { roomPercent: 0, equipmentPercent: 100 },
+        },
+      },
+      {
+        venueId: venueBId,
+        version: 1,
+        active: true,
+        tiers: {
+          moreThan48: { roomPercent: 100, equipmentPercent: 100 },
+          between24And48: { roomPercent: 50, equipmentPercent: 100 },
+          lessThan24: { roomPercent: 0, equipmentPercent: 100 },
+        },
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  console.log('Demo logins (password Password123!): customer@, staff@, admin-a@, admin-b@, platform@ atrium.local');
 }
 
 async function main(): Promise<void> {
@@ -62,6 +117,8 @@ async function main(): Promise<void> {
   }), 500)) {
     await prisma.$executeRaw(Prisma.sql`INSERT INTO bookings (id, user_id, room_id, slot, protected_slot, status, amount_minor, currency, pricing_snapshot, policy_snapshot, created_at, updated_at) VALUES ${Prisma.join(bookings)}`);
   }
+
+  await seedDemoAccounts(venueIds[0], venueIds[1] ?? venueIds[0]);
 
   console.log(`Seeded ${requestedProfile}: ${profile.venues} venues, ${profile.rooms} rooms, ${profile.equipment} equipment units, ${profile.bookings} bookings, ${profile.users} users`);
 }

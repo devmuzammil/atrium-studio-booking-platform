@@ -106,3 +106,22 @@
   only transient Prisma transaction errors. Test cleanup also had to include
   unknown provider-event fixtures. These changes preserve database-level
   idempotency rather than hiding concurrency failures with mocks.
+
+## Frontend Tier 1 UI
+
+- Delegated to Cursor agent: inspect real backend contracts and implement a
+  React + TypeScript + Tailwind frontend for the Tier 1 reviewer flow.
+- Discovery: the backend had JWT authentication middleware but no login/me
+  endpoints, booking detail responses were too sparse for checkout/detail UI,
+  and there were no list-bookings or venue-equipment read endpoints. Room,
+  equipment, pricing, and policy mutation APIs were also absent.
+- Override: added only the minimal read/auth endpoints required for the UI
+  (`POST /api/auth/login`, `GET /api/auth/me`, `GET /api/bookings`, enriched
+  booking detail after authorization, `GET /api/venues/:venueId/equipment`)
+  without changing concurrency, Paygate, Prisma, or replica topology.
+- Correction: an initial instinct to invent admin CRUD screens was rejected.
+  Admin UI is limited to identity/scope plus reports/bookings that already
+  exist. Demo seed accounts with scrypt password hashes were added so login
+  is real rather than client-side token minting.
+- Docker: frontend container proxies `/api` and `/health` through the existing
+  Nginx load balancer so the browser never addresses api1/api2/api3 directly.

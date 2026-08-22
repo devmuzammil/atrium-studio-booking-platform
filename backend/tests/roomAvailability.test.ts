@@ -54,6 +54,25 @@ async function search(query: Record<string, string> = {}) {
 }
 
 beforeAll(async () => {
+  await prisma.$executeRaw(Prisma.sql`
+    TRUNCATE TABLE
+      audit_events,
+      paygate_refunds,
+      paygate_charges,
+      payment_events,
+      payments,
+      refunds,
+      inventory_reservations,
+      booking_line_items,
+      bookings,
+      cancellation_policies,
+      user_venue_roles,
+      equipment_types,
+      rooms,
+      venues,
+      users
+    RESTART IDENTITY CASCADE;
+  `);
   await prisma.user.create({ data: { id: customerId, email: `${customerId}@test.local`, passwordHash: 'test' } });
   await prisma.venue.create({
     data: {
@@ -96,15 +115,50 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
-  await prisma.room.deleteMany({ where: { id: { in: [roomAId, roomBId] } } });
-  await prisma.venue.deleteMany({ where: { id: { in: [venueAId, venueBId] } } });
-  await prisma.user.delete({ where: { id: customerId } });
-  await prisma.$disconnect();
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, paygate_refunds, paygate_charges, payment_events, payments, refunds, inventory_reservations, booking_line_items, bookings, cancellation_policies, user_venue_roles, equipment_types, rooms, venues, users RESTART IDENTITY CASCADE;`);
 });
 
 afterEach(async () => {
-  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
+  await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, paygate_refunds, paygate_charges, payment_events, payments, refunds, inventory_reservations, booking_line_items, bookings, cancellation_policies, user_venue_roles, equipment_types, rooms, venues, users RESTART IDENTITY CASCADE;`);
+  await prisma.user.create({ data: { id: customerId, email: `${customerId}@test.local`, passwordHash: 'test' } });
+  await prisma.venue.create({
+    data: {
+      id: venueAId,
+      name: 'Venue A',
+      city: 'Karachi',
+      timezone: 'Asia/Karachi',
+      operatingSchedule: {},
+    },
+  });
+  await prisma.venue.create({
+    data: {
+      id: venueBId,
+      name: 'Venue B',
+      city: 'Dubai',
+      timezone: 'Asia/Dubai',
+      operatingSchedule: {},
+    },
+  });
+  await prisma.room.create({
+    data: {
+      id: roomAId,
+      venueId: venueAId,
+      name: 'Quiet Room',
+      capacity: 4,
+      hourlyRateMinor: 100,
+      amenities: ['quiet', 'daylight'],
+    },
+  });
+  await prisma.room.create({
+    data: {
+      id: roomBId,
+      venueId: venueBId,
+      name: 'Bright Room',
+      capacity: 8,
+      hourlyRateMinor: 200,
+      amenities: ['daylight', 'soundproof'],
+    },
+  });
 });
 
 describe('room availability and cross-venue search', () => {

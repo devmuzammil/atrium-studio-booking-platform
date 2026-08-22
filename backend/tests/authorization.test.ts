@@ -79,6 +79,15 @@ describe('JWT authentication and tenant authorization', () => {
       roomId: roomBId,
       status: 'CONFIRMED',
     });
+    (prisma.room.findUnique as jest.Mock).mockResolvedValueOnce({
+      id: roomBId,
+      venueId: venueAId,
+      name: 'Venue A Room',
+      capacity: 4,
+    });
+    jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
+    jest.spyOn(prisma.payment, 'findMany').mockResolvedValue([] as never);
+    jest.spyOn(prisma.refund, 'findMany').mockResolvedValue([] as never);
 
     const response = await request(app)
       .get(`/api/bookings/${bookingBId}`)

@@ -30,6 +30,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://atrium:atrium_password@postgres:5432/atrium?schema=public}
       JWT_SECRET: ${JWT_SECRET:-local-development-secret}
       INSTANCE_ID: api-1
+      PAYGATE_CHAOS: ${PAYGATE_CHAOS:-off}
     expose:
       - "3000"
     networks:
@@ -53,6 +54,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://atrium:atrium_password@postgres:5432/atrium?schema=public}
       JWT_SECRET: ${JWT_SECRET:-local-development-secret}
       INSTANCE_ID: api-2
+      PAYGATE_CHAOS: ${PAYGATE_CHAOS:-off}
     expose:
       - "3000"
     networks:
@@ -76,6 +78,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://atrium:atrium_password@postgres:5432/atrium?schema=public}
       JWT_SECRET: ${JWT_SECRET:-local-development-secret}
       INSTANCE_ID: api-3
+      PAYGATE_CHAOS: ${PAYGATE_CHAOS:-off}
     expose:
       - "3000"
     networks:
@@ -109,6 +112,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+    container_name: atrium-web
+    depends_on:
+      nginx:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    networks:
+      - atrium-net
+    restart: unless-stopped
 
 volumes:
   postgres_data:

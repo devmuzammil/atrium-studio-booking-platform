@@ -1,8 +1,8 @@
 # Tier 1 Verification Status Report
 
 **Date:** 2026-08-22  
-**Environment:** Windows 11, Docker CLI available but daemon not running  
-**Status:** PARTIAL VERIFICATION (Docker verification required for full Tier 1 completion)
+**Environment:** Windows, Docker Desktop daemon running, Compose stack healthy  
+**Status:** PARTIAL VERIFICATION (mandatory concurrency and isolation evidence pass; Paygate chaos and performance evidence remain incomplete)
 
 ---
 
@@ -12,8 +12,8 @@
 - **Issue:** Concurrent hold-expiry attempts timed out under Neon connection pool contention
 - **Root Cause:** Two concurrent transactions competing for single Prisma client connection pool
 - **Solution:** 
-  - Restored `SELECT ... FOR UPDATE SKIP LOCKED` to prevent unnecessary lock waiting
-  - Increased transaction timeout from 15s → 60s to account for connection acquisition latency
+  - Kept `SELECT ... FOR UPDATE SKIP LOCKED`, claim, update, and audit insert in one transaction
+  - Increased transaction timeout and connection wait to 60s for pool contention
   - 60s is appropriate for test environment; production uses separate worker connection pools
 - **Verification:**
   ```
@@ -31,6 +31,7 @@
 ### Backend Tier 1 Tests Verified
 - **Hold Expiry Logic:** All 7 tests pass (idempotency, concurrency, state machine)
 - **Build Status:** TypeScript compilation successful
+- **Focused regression:** room availability 18/18 and room availability plus booking holds 31/31 passed
 - **Instance Identity:** Environment-driven instance ID header support confirmed in code
 - **Health Endpoint:** x-instance-id header implementation confirmed in code
 - **Database Schema:** All migrations applied (audit append-only, payment idempotency, state machine)
@@ -49,35 +50,43 @@
 
 ---
 
-## NOT Verified (Environment Limitation - Docker Daemon Unavailable)
+## Runtime Evidence Collected
 
-### Phase 2: Docker Stack Runtime ❌ CANNOT VERIFY
-- **Requirement:** Docker daemon running (Docker Desktop or Docker Engine)
-- **Current Status:** Docker CLI available (v28.1.1) but daemon not running
-- **Error:** `Cannot find dockerDesktopLinuxEngine`
-- **Commands to Run Manually:** See [DOCKER_VERIFICATION_COMMANDS.md](DOCKER_VERIFICATION_COMMANDS.md)
+### Docker and Nginx
+- `docker compose config`: passed
+- `docker compose ps`: `atrium-postgres`, `atrium-api-1`, `atrium-api-2`, `atrium-api-3`, and `atrium-nginx` all healthy
+- PostgreSQL invariant check: `btree_gist` extension and `audit_events_append_only` trigger present
+- 30 requests through `http://localhost:8080/health`: 30 HTTP 200 responses, distributed evenly as api-1 10, api-2 10, api-3 10
+- Every response reported `postgres: ok` and `paygate: ok`
 
-### Phase 3: Nginx & Replica Distribution ❌ REQUIRES DOCKER
-- Nginx upstream configuration validated statically
-- Three API replica definition validated statically
-- Actual runtime load balancing verification impossible without Docker
+## NOT Verified
 
-### Phase 4: Concurrency Proof via Load Balancer ❌ REQUIRES DOCKER
-- Business logic concurrency proofs pass (direct database tests)
-- Load-balanced topology concurrency proof requires Nginx routing
+### Phase 4: 200-Request Concurrency Proof ✅ VERIFIED
+- **Room:** 1 success, 199 HTTP 409 conflicts, 0 unexpected responses.
+- **Equipment:** 3 successes, 197 HTTP 409 conflicts, 0 unexpected responses.
+- Executed through `http://localhost:8080` with API-1, API-2, and API-3 healthy.
 
-### Phase 5: Load Test Measurements ❌ REQUIRES DOCKER
+### Tenant Isolation ✅ VERIFIED
+- `tests/authorization.test.ts`: 10/10 passed.
+- Venue A scoped users received 403 for valid Venue B booking and room UUID access; no data was returned.
+
+### INV-3, INV-4, and INV-5 ✅ VERIFIED
+- `tests/payment.test.ts`: 8/8 passed in API-1 against Compose PostgreSQL.
+- Reconciliation endpoint returned `{ "discrepancies": [], "capturedCharges": 0 }` on a clean database.
+
+### Paygate Chaos ❌ FAILED LIVE BURST
+- `PAYGATE_CHAOS=on`, 100 charge attempts: 47 HTTP 202, 1 HTTP 500 after retry, and 52 HTTP 502 responses.
+- Nginx logs reported `no live upstreams` during the burst. This is not claimed as passing chaos verification.
+
+### Phase 5: Load Test Measurements ❌ NOT EXECUTED
 - Required metrics: p50, p95, p99, throughput, error rate
 - Test framework configured but cannot be executed without Docker
 
-### Phase 6: EXPLAIN ANALYZE Evidence ❌ ENVIRONMENT CONSTRAINT
-- Could run against Neon database but results would be against managed service
-- Prefer local PostgreSQL in Docker for fair benchmarking
+### Phase 6: EXPLAIN ANALYZE Evidence ❌ NOT EXECUTED
 - Commands provided in [DOCKER_VERIFICATION_COMMANDS.md](DOCKER_VERIFICATION_COMMANDS.md)
 
-### Phase 7: Architecture Documentation ❌ AWAITING RUNTIME EVIDENCE
-- All architectural decisions documented in [DECISIONS.md](DECISIONS.md)
-- Cannot add verified runtime evidence without Docker
+### Phase 7: Architecture Documentation ✅ UPDATED
+- This report and [TIER_1_FINAL_CHECKLIST.md](TIER_1_FINAL_CHECKLIST.md) contain the collected runtime evidence and remaining gaps.
 
 ---
 
@@ -307,5 +316,5 @@ Health checks configured for all services
 
 ---
 
-**Status Summary:** Business logic is Tier 1 ready. Infrastructure verification requires Docker execution on another machine.
+**Status Summary:** Hold expiry, backend compilation, Compose startup, database invariants, health checks, replica distribution, the 200-request concurrency proof, tenant isolation, payment integrity, and clean reconciliation are verified. Tier 1 is not fully complete because Paygate chaos failed live verification and load metrics, EXPLAIN ANALYZE evidence, and deployment remain outstanding.
 

@@ -10,20 +10,6 @@ async function expireClaimedHold(
   bookingId: string,
   now: Date,
 ): Promise<ExpiryResult> {
-  const claimed = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-    SELECT id
-    FROM bookings
-    WHERE id = ${bookingId}::uuid
-      AND status = 'HELD'::"BookingStatus"
-      AND hold_expires_at IS NOT NULL
-      AND hold_expires_at <= ${now}
-    FOR UPDATE SKIP LOCKED
-  `);
-
-  if (claimed.length === 0) {
-    return { bookingId, expired: false };
-  }
-
   const updated = await transaction.$executeRaw(Prisma.sql`
     UPDATE bookings
     SET status = 'EXPIRED'::"BookingStatus",
@@ -59,24 +45,27 @@ export async function expireDueHolds(
   const results: ExpiryResult[] = [];
 
   for (let index = 0; index < batchSize; index += 1) {
-    const result = await database.$transaction(async (transaction) => {
-      const claimed = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT id
-        FROM bookings
-        WHERE status = 'HELD'::"BookingStatus"
-          AND hold_expires_at IS NOT NULL
-          AND hold_expires_at <= ${now}
-        ORDER BY hold_expires_at, id
-        FOR UPDATE SKIP LOCKED
-        LIMIT 1
-      `);
+    const result = await database.$transaction(
+      async (transaction) => {
+        const claimed = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT id
+          FROM bookings
+          WHERE status = 'HELD'::"BookingStatus"
+            AND hold_expires_at IS NOT NULL
+            AND hold_expires_at <= ${now}
+          ORDER BY hold_expires_at, id
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        `);
 
-      if (claimed.length === 0) {
-        return null;
-      }
+        if (claimed.length === 0) {
+          return null;
+        }
 
-      return expireClaimedHold(transaction, claimed[0].id, now);
-    }, { timeout: 60000 });
+        return expireClaimedHold(transaction, claimed[0].id, now);
+      },
+      { timeout: 60000, maxWait: 60000 },
+    );
 
     if (!result) {
       break;
@@ -95,5 +84,8 @@ export async function expireHold(
   bookingId: string,
   now = new Date(),
 ): Promise<ExpiryResult> {
-  return database.$transaction(async (transaction) => expireClaimedHold(transaction, bookingId, now), { timeout: 60000 });
+  return database.$transaction(
+    async (transaction) => expireClaimedHold(transaction, bookingId, now),
+    { timeout: 60000, maxWait: 60000 },
+  );
 }

@@ -226,15 +226,39 @@ between multi-equipment bookings. A failed capacity check returns `409`.
 No mutex, cache, or process-local reservation state is used. All three API
 replicas connect to the same PostgreSQL database and therefore observe the same
 exclusion constraint and row locks. Expiry is also database-driven: workers
-claim due holds with `FOR UPDATE SKIP LOCKED`, then perform an explicit
-`HELD -> EXPIRED` transition. The worker is safe to run on multiple replicas.
+claim due holds with `FOR UPDATE SKIP LOCKED` in the same transaction as the
+explicit `HELD -> EXPIRED` transition and audit insert. The worker is safe to
+run on multiple replicas.
 
 The required concurrency proof sends 200 simultaneous requests to the same
 room and one-hour interval. PostgreSQL permits exactly one active room booking;
 the remaining requests receive `409`. The same transaction strategy permits no
 more than three simultaneous units when the equipment capacity is three. The
-proof must run through the load balancer, not directly against one process, and
-its output will be recorded here after execution.
+proof must run through the load balancer, not directly against one process.
+
+### Verified runtime evidence (2026-08-22)
+
+The Compose configuration validated successfully. The shared PostgreSQL
+container, three API replicas, and Nginx were all running and healthy. Thirty
+requests through Nginx returned HTTP 200 and distributed evenly across the
+replicas: `api-1` 10, `api-2` 10, and `api-3` 10. Each response reported
+PostgreSQL and Paygate dependencies as healthy. The `btree_gist` extension and
+`audit_events_append_only` trigger were present in PostgreSQL.
+
+The mandatory proof was executed through Nginx on the local Compose stack after
+configuring a dedicated local fixture. The room case produced exactly 1
+success, 199 HTTP 409 conflicts, and 0 unexpected responses. The equipment case
+produced 3 successes, 197 HTTP 409 conflicts, and 0 unexpected responses. No
+duplicate active room bookings or over-allocation occurred. The tenant-isolation
+negative test passed 10/10, including direct access to a valid resource UUID in
+another venue. The payment integrity suite passed 8/8, and a clean
+reconciliation query returned zero discrepancies with zero captured charges.
+
+The Paygate chaos burst was also executed with `PAYGATE_CHAOS=on`, but it is
+not a pass: 100 charge attempts produced 47 HTTP 202 responses, 1 HTTP 500
+after retry, and 52 HTTP 502 responses caused by Nginx reporting no live
+upstreams during the burst. Load-test measurements and `EXPLAIN ANALYZE`
+captures remain unverified.
 
 ## 5. Validation and Booking Rules
 

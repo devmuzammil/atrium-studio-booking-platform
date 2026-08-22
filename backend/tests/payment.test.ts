@@ -85,7 +85,6 @@ afterAll(async () => {
   await prisma.venue.delete({ where: { id: venueId } });
   await prisma.user.delete({ where: { id: userId } });
   await prisma.user.delete({ where: { id: otherUserId } });
-  await prisma.$disconnect();
 });
 
 describe('Paygate and payment integrity', () => {

@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:migrate:deploy": "prisma migrate deploy"
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "test:concurrency": "jest --runInBand tests/concurrencyProof.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

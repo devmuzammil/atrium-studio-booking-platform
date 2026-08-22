@@ -33,7 +33,7 @@ export async function searchAvailableRooms(
         AND b.status IN ('HELD', 'PENDING_PAYMENT', 'CONFIRMED')
         AND b.protected_slot && tstzrange(
           ${filters.start},
-          ${filters.end} + INTERVAL '15 minutes',
+          ${filters.end},
           '[)'
         )
     )`,

@@ -40,3 +40,28 @@
   cross-venue results. No benchmark numbers were fabricated.
 - Index decision: reused the existing active-room GiST index on
   `bookings.protected_slot`; no broad or redundant indexes were added.
+
+## Booking Holds
+
+- Delegated to Copilot: implement the authenticated atomic hold endpoint for
+  rooms and equipment, including validation, pricing, TTL, reservations, and
+  database-backed conflict handling.
+- Initial implementation: room holds store a protected range expanded by 15
+  minutes on both sides; equipment holds lock inventory rows and sweep active
+  reservation intervals inside a serializable Prisma transaction.
+- Correction recorded: the first availability adjustment expanded both the
+  stored protected range and the requested search range, which would require a
+  30-minute gap. It was corrected so availability compares the raw requested
+  interval against the already-expanded protected range.
+
+## Hold Concurrency
+
+- Delegated to Copilot: implement the room/equipment hold transaction and a
+  runnable three-replica API concurrency proof.
+- Review outcome: room conflicts are left to the PostgreSQL exclusion
+  constraint, equipment requests lock sorted inventory rows with `FOR UPDATE`,
+  and all writes share one serializable Prisma transaction. A concurrency test
+  using an API base URL was added without claiming results that were not run.
+- Test correction: the initial turnaround fixture used a 15-minute start that
+  violated the separate 30-minute booking-granularity rule; it now uses the
+  next valid half-hour boundary.

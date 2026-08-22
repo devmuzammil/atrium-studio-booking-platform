@@ -1,4 +1,4 @@
-import { BookingStatus, PrismaClient } from '@prisma/client';
+import { BookingStatus, Prisma, PrismaClient } from '@prisma/client';
 
 export const validBookingTransitions: Readonly<Record<BookingStatus, readonly BookingStatus[]>> = {
   [BookingStatus.DRAFT]: [BookingStatus.HELD],
@@ -45,50 +45,52 @@ export interface TransitionBookingInput {
   reason: string;
 }
 
-type TransactionClient = Parameters<PrismaClient['$transaction']>[0] extends (client: infer Client) => unknown
-  ? Client
-  : never;
+export type BookingTransactionClient = Prisma.TransactionClient;
 
-export async function transitionBooking(
-  prisma: PrismaClient,
+export async function transitionBookingInTransaction(
+  transaction: BookingTransactionClient,
   input: TransitionBookingInput,
 ): Promise<{ status: BookingStatus }> {
   if (!input.reason.trim()) {
     throw new TransitionReasonRequiredError();
   }
 
-  return prisma.$transaction(async (transaction) => {
-    const client = transaction as TransactionClient;
-    const booking = await client.booking.findUnique({
-      where: { id: input.bookingId },
-      select: { status: true },
-    });
-
-    if (!booking) {
-      throw new Error('Booking not found');
-    }
-
-    if (!canTransition(booking.status, input.to)) {
-      throw new InvalidBookingTransitionError(booking.status, input.to);
-    }
-
-    const updatedBooking = await client.booking.update({
-      where: { id: input.bookingId },
-      data: { status: input.to },
-      select: { status: true },
-    });
-
-    await client.auditEvent.create({
-      data: {
-        bookingId: input.bookingId,
-        actorId: input.actorId,
-        type: 'BOOKING_STATE_TRANSITION',
-        fromStatus: booking.status,
-        toStatus: input.to,
-        reason: input.reason,
-      },
-    });
-
-    return updatedBooking;
+  const booking = await transaction.booking.findUnique({
+    where: { id: input.bookingId },
+    select: { status: true },
   });
+
+  if (!booking) {
+    throw new Error('Booking not found');
+  }
+
+  if (!canTransition(booking.status, input.to)) {
+    throw new InvalidBookingTransitionError(booking.status, input.to);
+  }
+
+  const updatedBooking = await transaction.booking.update({
+    where: { id: input.bookingId },
+    data: { status: input.to },
+    select: { status: true },
+  });
+
+  await transaction.auditEvent.create({
+    data: {
+      bookingId: input.bookingId,
+      actorId: input.actorId,
+      type: 'BOOKING_STATE_TRANSITION',
+      fromStatus: booking.status,
+      toStatus: input.to,
+      reason: input.reason,
+    },
+  });
+
+  return updatedBooking;
+}
+
+export async function transitionBooking(
+  prisma: PrismaClient,
+  input: TransitionBookingInput,
+): Promise<{ status: BookingStatus }> {
+  return prisma.$transaction((transaction) => transitionBookingInTransaction(transaction, input));
 }

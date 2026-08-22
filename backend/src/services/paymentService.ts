@@ -57,7 +57,7 @@ export async function startPayment(database: PrismaClient, provider: PaymentProv
 
 async function processPaymentWebhookOnce(
   database: PrismaClient,
-  input: { deliveryId: string; chargeId: string; reference: string; event: string; amountMinor: number; currency?: string; occurredAt?: Date },
+  input: { deliveryId: string; chargeId: string; reference: string; event: string; amountMinor: number; currency?: string; occurredAt?: Date; correlationId?: string },
   provider: PaymentProvider,
 ): Promise<{ status: string }> {
   const result = await database.$transaction(async (transaction) => {
@@ -70,6 +70,7 @@ async function processPaymentWebhookOnce(
           payload: JSON.parse(JSON.stringify(input)) as Prisma.InputJsonValue,
           signatureValid: true,
           occurredAt: input.occurredAt,
+          correlationId: input.correlationId,
         },
       });
     } catch (error) {
@@ -124,7 +125,7 @@ function isRetryableWebhookTransactionError(error: unknown): boolean {
 
 export async function processPaymentWebhook(
   database: PrismaClient,
-  input: { deliveryId: string; chargeId: string; reference: string; event: string; amountMinor: number; currency?: string; occurredAt?: Date },
+  input: { deliveryId: string; chargeId: string; reference: string; event: string; amountMinor: number; currency?: string; occurredAt?: Date; correlationId?: string },
   provider: PaymentProvider,
 ): Promise<{ status: string }> {
   for (let attempt = 0; attempt < 3; attempt += 1) {

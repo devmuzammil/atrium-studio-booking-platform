@@ -134,13 +134,14 @@ describe('Paygate and payment integrity', () => {
     const bookingId = await createHeldBooking();
     await request(app).post(`/api/bookings/${bookingId}/payment`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'payment-key');
     const body = { charge_id: 'ch_payment_test', reference: bookingId, event: 'charge.succeeded', amount_minor: 12500, currency: 'PKR', occurred_at: new Date().toISOString() };
-    const first = await webhook(body);
+    const first = await webhook(body).set('X-Request-ID', 'payment-webhook-correlation');
     const second = await webhook(body, randomUUID());
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.CONFIRMED);
     expect(await prisma.auditEvent.count({ where: { bookingId, toStatus: BookingStatus.CONFIRMED } })).toBe(1);
+    expect((await prisma.paymentEvent.findFirst({ where: { providerChargeId: 'ch_payment_test' } }))?.correlationId).toBe('payment-webhook-correlation');
   });
 
   it('rejects invalid signatures and incorrect amounts without confirmation', async () => {

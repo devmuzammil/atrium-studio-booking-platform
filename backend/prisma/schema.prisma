@@ -219,8 +219,8 @@ model Payment {
   events           PaymentEvent[]
   refunds          Refund[]
 
-  @@index([bookingId])
   @@unique([bookingId])
+  @@index([bookingId])
   @@map("payments")
 }
 
@@ -264,6 +264,7 @@ model PaymentEvent {
   occurredAt         DateTime?        @map("occurred_at")
   processedAt        DateTime?        @map("processed_at")
   createdAt          DateTime         @default(now()) @map("created_at")
+  correlationId      String?          @map("correlation_id")
   payment            Payment?         @relation(fields: [providerChargeId], references: [providerChargeId])
 
   @@index([providerChargeId])

@@ -4,6 +4,7 @@ import { authorizeBookingAccess, requireAuthenticatedUser } from '../middleware/
 import { localPaymentProvider, PaymentProvider, processPaymentWebhook, startPayment } from '../services/paymentService';
 import { verifyPaygateSignature } from '../services/paygateService';
 import type { RawBodyRequest } from '../app';
+import type { RequestContextRequest } from '../middleware/requestContext';
 
 export async function startBookingPayment(request: Request, response: Response, next: NextFunction, provider?: PaymentProvider): Promise<void> {
   try {
@@ -29,6 +30,7 @@ export async function receivePaygateWebhook(request: Request, response: Response
       return;
     }
     const body = request.body as Record<string, unknown>;
+    const requestId = (request as RequestContextRequest).requestId;
     const deliveryId = request.header('x-paygate-delivery');
     if (!deliveryId || typeof body.charge_id !== 'string' || typeof body.reference !== 'string' || typeof body.event !== 'string' || typeof body.amount_minor !== 'number') {
       response.status(400).json({ error: 'Invalid Paygate webhook payload' });
@@ -42,6 +44,7 @@ export async function receivePaygateWebhook(request: Request, response: Response
       amountMinor: body.amount_minor,
       currency: typeof body.currency === 'string' ? body.currency : undefined,
       occurredAt: typeof body.occurred_at === 'string' ? new Date(body.occurred_at) : undefined,
+      correlationId: requestId,
     }, provider || localPaymentProvider(prisma));
     response.status(200).json(result);
   } catch (error) { next(error); }

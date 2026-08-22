@@ -85,6 +85,22 @@
   `FAILED`; retrying the same idempotency key can therefore recover without a
   duplicate charge. Raw webhook bytes, database row locks, and unique
   delivery/business keys remain authoritative.
+
+## Remaining Tier 1 Completion
+
+- Delegated to Copilot: audit the repository against all remaining Tier 1
+  requirements and implement cancellation, reconciliation, venue reporting,
+  request correlation, dependency health, seeding, and CI where absent.
+- Reviewed: existing routes, Prisma schema/migrations, Paygate flow, audit/state
+  machine, tests, README, Docker/CI presence, and deployment artifacts.
+- Corrections recorded: cancellation initially used a fixed 24-hour assumption
+  and was changed to derive the booking interval and policy snapshot. Health
+  initially returned success without a Paygate dependency check and now checks
+  both persistence dependencies. Unknown-charge handling required preserving
+  its migration without a provider foreign key.
+- Operational limitation: no public deployment or full-profile benchmark was
+  claimed because no hosting/load-test environment was configured. The shared
+  demo/full seed path and CI workflow are present for those environments.
 - Test issues discovered: remote Neon lock contention once exceeded the
   default interactive transaction timeout, so webhook processing now retries
   only transient Prisma transaction errors. Test cleanup also had to include

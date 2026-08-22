@@ -1,0 +1,87 @@
+import { BookingStatus, PaymentStatus, Prisma, PrismaClient } from '@prisma/client';
+import { transitionBookingInTransaction } from './bookingStateMachine';
+import { PaymentProvider } from './paymentService';
+
+export interface RefundTerms {
+  roomPercent: number;
+  equipmentPercent: number;
+}
+
+export class CancellationError extends Error { readonly statusCode = 409; }
+
+export const defaultRefundTerms = (hoursUntilStart: number): RefundTerms => {
+  if (hoursUntilStart > 48) return { roomPercent: 100, equipmentPercent: 100 };
+  if (hoursUntilStart >= 24) return { roomPercent: 50, equipmentPercent: 100 };
+  return { roomPercent: 0, equipmentPercent: hoursUntilStart > 2 ? 100 : 0 };
+};
+
+function termsFromPolicy(policy: Prisma.JsonValue, hoursUntilStart: number): RefundTerms {
+  if (typeof policy !== 'object' || policy === null || Array.isArray(policy)) return defaultRefundTerms(hoursUntilStart);
+  const value = policy as Record<string, Prisma.JsonValue>;
+  const roomPercent = value.roomPercent;
+  const equipmentPercent = value.equipmentPercent;
+  if (typeof roomPercent === 'number' && typeof equipmentPercent === 'number') {
+    return { roomPercent, equipmentPercent };
+  }
+  const tier = hoursUntilStart > 48 ? value.moreThan48 : hoursUntilStart >= 24 ? value.between24And48 : value.lessThan24;
+  if (typeof tier === 'object' && tier !== null && !Array.isArray(tier)) {
+    const selected = tier as Record<string, Prisma.JsonValue>;
+    if (typeof selected.roomPercent === 'number' && typeof selected.equipmentPercent === 'number') {
+      return { roomPercent: selected.roomPercent, equipmentPercent: selected.equipmentPercent };
+    }
+  }
+  return defaultRefundTerms(hoursUntilStart);
+}
+
+export async function cancelBooking(
+  database: PrismaClient,
+  provider: PaymentProvider,
+  bookingId: string,
+  actorId: string,
+): Promise<{ bookingId: string; status: BookingStatus; refundAmountMinor: number }> {
+  const result = await database.$transaction(async (transaction) => {
+    const booking = await transaction.booking.findUnique({
+      where: { id: bookingId },
+      select: { id: true, userId: true, roomId: true, status: true, amountMinor: true, currency: true, pricingSnapshot: true, policySnapshot: true },
+    });
+    if (!booking || booking.userId !== actorId) throw new CancellationError('Booking is not accessible');
+    if (booking.status !== BookingStatus.CONFIRMED) throw new CancellationError('Only confirmed bookings can be cancelled');
+
+    const interval = await transaction.$queryRaw<Array<{ start: Date; end: Date }>>(Prisma.sql`SELECT lower(slot) AS start, upper(slot) AS end FROM bookings WHERE id = ${bookingId}::uuid`);
+    const room = await transaction.room.findUnique({ where: { id: booking.roomId }, select: { venueId: true, hourlyRateMinor: true } });
+    if (!room || interval.length === 0) throw new CancellationError('Booking inventory could not be loaded');
+    const hoursUntilStart = (interval[0].start.getTime() - Date.now()) / 3600000;
+    const policy = await transaction.cancellationPolicy.findFirst({ where: { venueId: room.venueId, active: true }, orderBy: { version: 'desc' }, select: { tiers: true } });
+    const snapshot = typeof booking.policySnapshot === 'object' && booking.policySnapshot !== null && !Array.isArray(booking.policySnapshot)
+      ? booking.policySnapshot as Record<string, Prisma.JsonValue>
+      : {};
+    const terms = termsFromPolicy(snapshot.tiers ?? policy?.tiers ?? {}, hoursUntilStart);
+    const pricing = typeof booking.pricingSnapshot === 'object' && booking.pricingSnapshot !== null && !Array.isArray(booking.pricingSnapshot)
+      ? booking.pricingSnapshot as Record<string, Prisma.JsonValue>
+      : {};
+    const durationHours = (interval[0].end.getTime() - interval[0].start.getTime()) / 3600000;
+    const roomAmount = typeof pricing.roomRateMinor === 'number' ? Math.round(pricing.roomRateMinor * durationHours) : Math.round(room.hourlyRateMinor * durationHours);
+    const equipmentAmount = Math.max(0, booking.amountMinor - roomAmount);
+    const refundAmountMinor = Math.floor(roomAmount * terms.roomPercent / 100) + Math.floor(equipmentAmount * terms.equipmentPercent / 100);
+    await transitionBookingInTransaction(transaction, { bookingId, to: BookingStatus.CANCELLED, actorId, reason: 'customer cancellation' });
+
+    const payment = await transaction.payment.findUnique({ where: { bookingId }, select: { id: true, providerChargeId: true, amountMinor: true, status: true } });
+    if (!payment || payment.status !== PaymentStatus.SUCCEEDED || !payment.providerChargeId || refundAmountMinor === 0) {
+      return { bookingId, status: BookingStatus.CANCELLED, refundAmountMinor };
+    }
+    const refundKey = `refund:cancel:${bookingId}:${refundAmountMinor}`;
+    const refund = await transaction.refund.upsert({
+      where: { idempotencyKey: refundKey },
+      create: { bookingId, paymentId: payment.id, idempotencyKey: refundKey, amountMinor: refundAmountMinor, currency: booking.currency, status: PaymentStatus.PROCESSING },
+      update: {},
+    });
+    await transitionBookingInTransaction(transaction, { bookingId, to: BookingStatus.REFUNDED, actorId, reason: 'cancellation refund recorded' });
+    return { bookingId, status: BookingStatus.REFUNDED, refundAmountMinor, providerChargeId: payment.providerChargeId, refundId: refund.id, refundKey };
+  });
+
+  if ('providerChargeId' in result && result.providerChargeId && 'refundKey' in result && result.refundKey && 'refundId' in result && result.refundId && result.refundAmountMinor > 0) {
+    const providerRefund = await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.providerChargeId, amountMinor: result.refundAmountMinor });
+    await database.refund.update({ where: { id: result.refundId }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+  }
+  return result;
+}

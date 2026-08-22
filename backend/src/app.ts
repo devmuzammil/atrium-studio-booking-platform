@@ -6,6 +6,7 @@ import { createResourceRoutes } from './routes/resourceRoutes';
 import { AuthDependencies } from './middleware/auth';
 import { createPaymentRoutes } from './routes/paymentRoutes';
 import { PaymentProvider } from './services/paymentService';
+import { requestContext } from './middleware/requestContext';
 
 export interface HealthDatabase {
   $queryRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
@@ -19,17 +20,20 @@ interface AppDependencies {
   database?: HealthDatabase;
   auth?: AuthDependencies;
   paymentProvider?: PaymentProvider;
+  paygateHealth?: { count: () => Promise<number> };
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
   const app = express();
   const database = dependencies.database || (prisma as unknown as PrismaClient & HealthDatabase);
+  const paygateHealth = dependencies.paygateHealth || prisma.paygateCharge;
 
   app.use(express.json({
     verify: (request, _response, buffer) => {
       (request as RawBodyRequest).rawBody = Buffer.from(buffer);
     },
   }));
+  app.use(requestContext);
 
   app.use(createPaymentRoutes(dependencies.auth, dependencies.paymentProvider));
   app.use('/api', createResourceRoutes(dependencies.auth));
@@ -37,9 +41,10 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   app.get('/health', async (_request, response, next) => {
     try {
       await database.$queryRaw`SELECT 1`;
-      response.status(200).json({ status: 'ok' });
+      await paygateHealth.count();
+      response.status(200).json({ status: 'ok', dependencies: { postgres: 'ok', paygate: 'ok' } });
     } catch (error) {
-      next(error);
+      response.status(503).json({ status: 'unhealthy', dependencies: { postgres: 'unavailable', paygate: 'unavailable' } });
     }
   });
 

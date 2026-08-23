@@ -35,7 +35,7 @@ export async function getVenueReport(database: PrismaClient, venueId?: string, s
     SELECT venue_id AS "venueId", venue_name AS "venueName", revenue_minor AS "revenueMinor",
       confirmed_bookings AS "confirmedBookings", booked_minutes AS "bookedMinutes",
       CASE WHEN ${boundedWindow} AND room_count > 0
-        THEN ROUND((booked_minutes * 100.0) / (room_count * EXTRACT(EPOCH FROM (${end ?? new Date(0)} - ${start ?? new Date(0)}) / 60)), 2)
+        THEN ROUND((booked_minutes * 100.0) / (room_count * EXTRACT(EPOCH FROM (${end ?? new Date(0)} - ${start ?? new Date(0)}) / 60)), 2)::float8
         ELSE NULL
       END AS "utilizationPercent"
     FROM venue_metrics

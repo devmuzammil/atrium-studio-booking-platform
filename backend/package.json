@@ -13,7 +13,7 @@
     "prisma:format": "prisma format",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "prisma db seed",
+    "prisma:seed": "prisma db seed --",
     "test:concurrency": "jest --runInBand tests/concurrencyProof.test.ts"
   },
   "dependencies": {

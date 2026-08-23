@@ -18,3 +18,4 @@
 - Paygate `CHAOS=on` burst previously returned Nginx 502s. Not a pass.
 - No load-test percentiles or EXPLAIN ANALYZE evidence.
 - Full database verification of report metrics and management integration tests remains blocked when the configured Neon database is unavailable.
+- Seed profile execution and exact count verification are currently blocked by the unavailable configured Neon database; the seed command now correctly forwards `--profile` arguments.

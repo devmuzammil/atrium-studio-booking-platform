@@ -154,3 +154,10 @@
 - Correction recorded: the original query had no utilisation percentage and aggregated directly across payment joins. It now aggregates each booking first, then calculates bounded-window room utilisation.
 - Chosen definition: booked room minutes divided by total room capacity in the requested time window. This was recorded in `KNOWN_ISSUES.md`; `ARCHITECTURE.md` was not changed.
 - Added direct-ID cross-venue revenue-report authorization coverage and exposed utilisation in the existing reports UI.
+
+## Tier 2 verification and seed profiles
+
+- Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.
+- Correction recorded: the seed profile constants were correct, but the five required demo accounts were originally added on top of the configured user count and booking dates spanned multiple years. The seed now reserves five users for those accounts and cycles bookings across exactly 24 calendar months.
+- Correction recorded: `prisma:seed` originally failed to forward `--profile`; the npm script now passes arguments through to the seed program.
+- Verification limitation: integration fixtures and demo seeding could not run because the configured Neon host was unreachable. No database counts or integration assertions are claimed as passed.

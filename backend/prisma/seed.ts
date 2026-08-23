@@ -102,7 +102,10 @@ async function main(): Promise<void> {
     await prisma.equipmentType.createMany({ data: Array.from({ length: Math.max(1, Math.ceil(equipmentAtVenue / 10)) }, (_, equipmentIndex) => ({ id: randomUUID(), venueId: venueIds[venueIndex], name: `Equipment ${venueIndex + 1}-${equipmentIndex + 1}`, hourlyRateMinor: 1000 + equipmentIndex * 100, currency: 'PKR', totalUnits: distribute(equipmentAtVenue, Math.max(1, Math.ceil(equipmentAtVenue / 10)), equipmentIndex), overbookingPercent: 0 })) });
   }
 
-  const userIds = Array.from({ length: profile.users }, () => randomUUID());
+  const demoAccountCount = 5;
+  const generatedUserCount = profile.users - demoAccountCount;
+  if (generatedUserCount < 0) throw new Error('Profile user count must include the five demo accounts');
+  const userIds = Array.from({ length: generatedUserCount }, () => randomUUID());
   for (const users of chunk(userIds.map((id, index) => ({ id, email: `seed-user-${index + 1}@atrium.local`, passwordHash: 'seed-password-not-for-login' })), 1000)) {
     await prisma.user.createMany({ data: users });
   }
@@ -111,7 +114,8 @@ async function main(): Promise<void> {
     const id = randomUUID();
     const roomId = roomIds[index % roomIds.length];
     const userId = userIds[index % userIds.length];
-    const start = new Date(Date.UTC(2024 + Math.floor(index / 36500), index % 12, 1 + (index % 27), 8 + (index % 8), (index % 2) * 30));
+    const monthIndex = index % 24;
+    const start = new Date(Date.UTC(2024 + Math.floor(monthIndex / 12), monthIndex % 12, 1 + (index % 27), 8 + (index % 8), (index % 2) * 30));
     const end = new Date(start.getTime() + (60 + (index % 8) * 60) * 60000);
     return Prisma.sql`(${id}::uuid, ${userId}::uuid, ${roomId}::uuid, tstzrange(${start}, ${end}, '[)'), tstzrange(${start}, ${end}, '[)'), 'COMPLETED'::"BookingStatus", ${5000 + (index % 20) * 500}, 'PKR', '{}'::jsonb, '{}'::jsonb, now(), now())`;
   }), 500)) {

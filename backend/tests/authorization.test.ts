@@ -148,6 +148,15 @@ describe('JWT authentication and tenant authorization', () => {
     expect(response.body.id).toBe(roomBId);
   });
 
+  it('denies Venue A admin a Venue B reconciliation report', async () => {
+    const response = await request(app)
+      .get(`/api/reports/reconciliation?venueId=${venueBId}`)
+      .set('Authorization', `Bearer ${tokenFor(venueAdminAId)}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body).not.toHaveProperty('discrepancies');
+  });
+
   it('does not allow venue staff to perform admin-only operations', () => {
     const requestWithStaff = { user: testAuthUser(venueStaffAId) } as AuthenticatedRequest;
 

@@ -99,7 +99,20 @@ describe('hold expiry worker', () => {
     expect(await prisma.auditEvent.count({ where: { bookingId, toStatus: BookingStatus.EXPIRED } })).toBe(0);
   });
 
-  it('keeps an expired booking unconfirmed when payment succeeds later', async () => {
+  it('expires PENDING_PAYMENT bookings whose hold TTL elapsed', async () => {
+    const bookingId = await createBooking(BookingStatus.PENDING_PAYMENT);
+    await prisma.payment.create({
+      data: { bookingId, idempotencyKey: randomUUID(), providerChargeId: 'ch_pending_expiry', amountMinor: 10000, currency: 'PKR', status: 'PROCESSING' },
+    });
+
+    const result = await expireHold(prisma, bookingId);
+
+    expect(result.expired).toBe(true);
+    expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.EXPIRED);
+    expect(await prisma.auditEvent.count({ where: { bookingId, fromStatus: BookingStatus.PENDING_PAYMENT, toStatus: BookingStatus.EXPIRED } })).toBe(1);
+  });
+
+  it('keeps an expired booking unconfirmable when payment succeeds later', async () => {
     const bookingId = await createBooking(BookingStatus.HELD);
     await prisma.payment.create({ data: { bookingId, idempotencyKey: randomUUID(), providerChargeId: 'ch_expiry_test', amountMinor: 10000, currency: 'PKR', status: 'PROCESSING' } });
     await expireHold(prisma, bookingId);

@@ -279,15 +279,23 @@ Representative API boundaries are:
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
+| `POST` | `/api/auth/login` | Email/password login, JWT |
+| `GET` | `/api/auth/me` | Current user and venue roles |
 | `GET` | `/api/venues/search` | Combined city, capacity, amenities, price, and availability search |
-| `GET` | `/api/rooms/:id/availability` | Availability for a seven-day range |
+| `GET` | `/api/rooms/:id/availability` | Availability for a window of at most seven days |
+| `GET` | `/api/venues/:venueId/equipment` | Equipment types for optional hold line items |
+| `GET` | `/api/venues/:venueId/cancellation-policy` | Active refund tiers (data, not code) |
+| `PUT` | `/api/venues/:venueId/cancellation-policy` | Venue admin replaces active tiers; old versions stay for history |
 | `POST` | `/api/bookings/holds` | Atomic room and equipment hold |
+| `POST` | `/api/bookings/:id/checkout` | Grant a 10-minute checkout window; may extend the 8-minute hold |
 | `POST` | `/api/bookings/:id/payment` | Submit one Paygate charge attempt |
-| `POST` | `/api/paygate/webhook` | Verify and enqueue provider event |
-| `POST` | `/api/bookings/:id/cancel` | Apply policy and create idempotent refunds |
+| `POST` | `/api/paygate/webhook` | Verify signature, persist event, apply payment effect |
+| `POST` | `/api/bookings/:id/cancel` | Apply policy snapshot and create idempotent refunds |
+| `GET` | `/api/bookings` | Tenant-scoped booking list |
+| `GET` | `/api/bookings/:id` | Booking detail |
 | `GET` | `/api/reports/reconciliation` | Captures, bookings, refunds, and discrepancies |
 | `GET` | `/api/reports/revenue` | Venue-scoped revenue and utilization |
-| `GET` | `/api/health` | Database and worker dependency health |
+| `GET` | `/health` | Database and Paygate persistence health |
 
 Express middleware authenticates a short-lived token, loads the role and venue
 scope from PostgreSQL, and performs authorization again inside the service
@@ -419,13 +427,21 @@ state.
   and equipment, and is rounded down to a whole unit where quantity applies; it
   never removes the assessment's requirement to enforce inventory limits.
 - The ten-minute checkout window is represented by a checkout deadline that is
-  at least ten minutes from checkout creation. It may extend the eight-minute
-  initial hold, but never shortens an already granted payment window.
+  at least ten minutes from checkout creation (`POST /api/bookings/:id/checkout`).
+  It may extend the eight-minute initial hold, but never shortens an already
+  granted payment window. Holds that never reach checkout expire at eight minutes.
 - Inventory and policy edits affect future holds. Existing confirmed bookings
-  use their stored price and policy snapshots.
+  use their stored price and policy snapshots. Venue admins replace policy via
+  `PUT /api/venues/:venueId/cancellation-policy`, which inserts a new version
+  and deactivates the previous active row.
 - Paygate's successful charge is considered captured only from a valid signed
   success event; a `202 processing` response alone never confirms a booking.
 - Unknown provider events remain queryable until reconciliation resolves them.
+- Health is exposed at `GET /health` (not `/api/health`).
+- Webhook handling verifies the HMAC, writes `payment_events`, then applies the
+  booking/payment transition before returning. That is still one request; the
+  durable event row is what makes retries safe. A fully async worker was not
+  split out.
 
 ## 12. What Breaks at 100x
 

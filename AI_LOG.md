@@ -147,3 +147,10 @@
 - Prisma CLI moved to production dependencies so `migrate deploy` survives
   `npm prune --omit=dev`. Demo seed is documented as a local one-off against
   Neon, not part of the Render start command.
+
+## Revenue and utilisation report
+
+- Delegated to Copilot: inspect and verify the existing venue report before moving to the next Tier 2 item.
+- Correction recorded: the original query had no utilisation percentage and aggregated directly across payment joins. It now aggregates each booking first, then calculates bounded-window room utilisation.
+- Chosen definition: booked room minutes divided by total room capacity in the requested time window. This was recorded in `KNOWN_ISSUES.md`; `ARCHITECTURE.md` was not changed.
+- Added direct-ID cross-venue revenue-report authorization coverage and exposed utilisation in the existing reports UI.

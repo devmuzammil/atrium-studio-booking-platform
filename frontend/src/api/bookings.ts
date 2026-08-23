@@ -58,6 +58,12 @@ export async function getBooking(id: string): Promise<BookingDetail> {
   return apiRequest(`/api/bookings/${id}`);
 }
 
+export async function beginCheckout(bookingId: string): Promise<{
+  booking: { id: string; status: string; holdExpiresAt: string; checkoutDeadline: string };
+}> {
+  return apiRequest(`/api/bookings/${bookingId}/checkout`, { method: 'POST' });
+}
+
 export async function startPayment(bookingId: string, idempotencyKey: string): Promise<{ payment: unknown }> {
   return apiRequest(`/api/bookings/${bookingId}/payment`, {
     method: 'POST',
@@ -91,6 +97,20 @@ export async function getRevenueReport(params?: {
   if (params?.end) query.set('end', params.end);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return apiRequest(`/api/reports/revenue${suffix}`);
+}
+
+export async function getVenuePolicy(venueId: string): Promise<{ policy: { venueId: string; version: number; tiers: unknown } }> {
+  return apiRequest(`/api/venues/${venueId}/cancellation-policy`);
+}
+
+export async function updateVenuePolicy(
+  venueId: string,
+  tiers: unknown,
+): Promise<{ policy: { venueId: string; version: number; tiers: unknown } }> {
+  return apiRequest(`/api/venues/${venueId}/cancellation-policy`, {
+    method: 'PUT',
+    body: JSON.stringify({ tiers }),
+  });
 }
 
 export async function getHealth(): Promise<{

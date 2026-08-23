@@ -126,6 +126,17 @@
 - Docker: frontend container proxies `/api` and `/health` through the existing
   Nginx load balancer so the browser never addresses api1/api2/api3 directly.
 
+## Tier 1 correctness follow-up
+
+- Delegated: close remaining Tier 1 gaps against ARCHITECTURE.md.
+- Corrections: hold expiry used a raw `UPDATE ... SET status = EXPIRED`; it now
+  goes through `transitionBookingInTransaction`. Checkout was an 8-minute hold
+  with an unused 10-minute timestamp; `POST /checkout` now extends the hold.
+  Policy had no write API; versioned PUT was added. A report UUID negative test
+  and an end-to-end hold-pay-confirm test were added.
+- Not claimed: live deploy, k6 numbers, or a fresh 200-request proof run.
+
+
 ## Render backend packaging
 
 - Delegated: make the API bootable on Render Hobby without a paid database.
@@ -136,3 +147,16 @@
 - Prisma CLI moved to production dependencies so `migrate deploy` survives
   `npm prune --omit=dev`. Demo seed is documented as a local one-off against
   Neon, not part of the Render start command.
+## Revenue and utilisation report
+
+- Delegated to Copilot: inspect and verify the existing venue report before moving to the next Tier 2 item.
+- Correction recorded: the original query had no utilisation percentage and aggregated directly across payment joins. It now aggregates each booking first, then calculates bounded-window room utilisation.
+- Chosen definition: booked room minutes divided by total room capacity in the requested time window. This was recorded in `KNOWN_ISSUES.md`; `ARCHITECTURE.md` was not changed.
+- Added direct-ID cross-venue revenue-report authorization coverage and exposed utilisation in the existing reports UI.
+
+## Tier 2 verification and seed profiles
+
+- Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.
+- Correction recorded: the seed profile constants were correct, but the five required demo accounts were originally added on top of the configured user count and booking dates spanned multiple years. The seed now reserves five users for those accounts and cycles bookings across exactly 24 calendar months.
+- Correction recorded: `prisma:seed` originally failed to forward `--profile`; the npm script now passes arguments through to the seed program.
+- Verification limitation: integration fixtures and demo seeding could not run because the configured Neon host was unreachable. No database counts or integration assertions are claimed as passed.

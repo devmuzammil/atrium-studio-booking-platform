@@ -69,3 +69,27 @@ export async function searchAvailableRooms(
     ORDER BY v.city, v.name, r.name
   `);
 }
+
+export async function getRoomAvailability(
+  database: PrismaClient,
+  roomId: string,
+  start: Date,
+  end: Date,
+): Promise<{
+  roomId: string;
+  start: Date;
+  end: Date;
+  available: boolean;
+  busy: Array<{ start: Date; end: Date; status: string }>;
+}> {
+  const busy = await database.$queryRaw<Array<{ start: Date; end: Date; status: string }>>(Prisma.sql`
+    SELECT lower(b.slot) AS start, upper(b.slot) AS end, b.status::text AS status
+    FROM bookings b
+    WHERE b.room_id = ${roomId}::uuid
+      AND b.status IN ('HELD', 'PENDING_PAYMENT', 'CONFIRMED')
+      AND b.protected_slot && tstzrange(${start}, ${end}, '[)')
+    ORDER BY lower(b.slot)
+  `);
+
+  return { roomId, start, end, available: busy.length === 0, busy };
+}

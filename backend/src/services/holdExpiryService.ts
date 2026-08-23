@@ -1,37 +1,41 @@
 import { BookingStatus, Prisma, PrismaClient } from '@prisma/client';
+import { transitionBookingInTransaction } from './bookingStateMachine';
 
 export interface ExpiryResult {
   bookingId: string;
   expired: boolean;
 }
 
+const EXPIRABLE: BookingStatus[] = [BookingStatus.HELD, BookingStatus.PENDING_PAYMENT];
+
 async function expireClaimedHold(
   transaction: Prisma.TransactionClient,
   bookingId: string,
   now: Date,
 ): Promise<ExpiryResult> {
-  const updated = await transaction.$executeRaw(Prisma.sql`
-    UPDATE bookings
-    SET status = 'EXPIRED'::"BookingStatus",
-        updated_at = NOW()
+  const locked = await transaction.$queryRaw<Array<{ id: string; status: BookingStatus; holdExpiresAt: Date | null }>>(Prisma.sql`
+    SELECT id, status, hold_expires_at AS "holdExpiresAt"
+    FROM bookings
     WHERE id = ${bookingId}::uuid
-      AND status = 'HELD'::"BookingStatus"
-      AND hold_expires_at IS NOT NULL
-      AND hold_expires_at <= ${now}
+    FOR UPDATE
   `);
 
-  if (updated === 0) {
+  const booking = locked[0];
+  if (
+    !booking
+    || !EXPIRABLE.includes(booking.status)
+    || !booking.holdExpiresAt
+    || booking.holdExpiresAt > now
+  ) {
     return { bookingId, expired: false };
   }
 
-  await transaction.auditEvent.create({
-    data: {
-      bookingId,
-      type: 'BOOKING_STATE_TRANSITION',
-      fromStatus: BookingStatus.HELD,
-      toStatus: BookingStatus.EXPIRED,
-      reason: 'hold TTL elapsed',
-    },
+  await transitionBookingInTransaction(transaction, {
+    bookingId,
+    to: BookingStatus.EXPIRED,
+    reason: booking.status === BookingStatus.PENDING_PAYMENT
+      ? 'hold TTL elapsed while payment in flight'
+      : 'hold TTL elapsed',
   });
 
   return { bookingId, expired: true };
@@ -50,7 +54,7 @@ export async function expireDueHolds(
         const claimed = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           SELECT id
           FROM bookings
-          WHERE status = 'HELD'::"BookingStatus"
+          WHERE status IN ('HELD'::"BookingStatus", 'PENDING_PAYMENT'::"BookingStatus")
             AND hold_expires_at IS NOT NULL
             AND hold_expires_at <= ${now}
           ORDER BY hold_expires_at, id

@@ -2,20 +2,24 @@ import { app } from './app';
 import { getConfig } from './config/env';
 import { prisma } from './config/prisma';
 import { expireDueHolds } from './services/holdExpiryService';
+import { completeDueBookings } from './services/bookingCompletionService';
 
-function startHoldExpiryLoop(): NodeJS.Timeout | null {
+function startBackgroundLoops(): NodeJS.Timeout | null {
   if (process.env.RUN_WORKER === 'false') {
-    console.log('Hold expiry worker disabled (RUN_WORKER=false)');
+    console.log('Background workers disabled (RUN_WORKER=false)');
     return null;
   }
 
   const pollMs = Number(process.env.HOLD_EXPIRY_POLL_MS || 2000);
   const intervalMs = Number.isFinite(pollMs) && pollMs >= 500 ? pollMs : 2000;
-  console.log(`Hold expiry worker polling every ${intervalMs}ms`);
+  console.log(`Background workers polling every ${intervalMs}ms`);
 
   return setInterval(() => {
     void expireDueHolds(prisma).catch((error: unknown) => {
       console.error('Hold expiry poll failed:', error);
+    });
+    void completeDueBookings(prisma).catch((error: unknown) => {
+      console.error('Booking completion poll failed:', error);
     });
   }, intervalMs);
 }
@@ -30,11 +34,11 @@ async function startServer(): Promise<void> {
     console.log(`Atrium API listening on 0.0.0.0:${config.port}`);
   });
 
-  const expiryTimer = startHoldExpiryLoop();
+  const workerTimer = startBackgroundLoops();
 
   const shutdown = async (): Promise<void> => {
-    if (expiryTimer) {
-      clearInterval(expiryTimer);
+    if (workerTimer) {
+      clearInterval(workerTimer);
     }
     server.close(async () => {
       await prisma.$disconnect();

@@ -148,4 +148,5 @@ export interface VenueReportRow {
   revenueMinor: number;
   confirmedBookings: number;
   bookedMinutes: number;
+  utilizationPercent: number | null;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { getBooking, startPayment } from '../api/bookings';
+import { beginCheckout, getBooking, startPayment } from '../api/bookings';
 import { ApiError } from '../api/client';
 import type { BookingDetail } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
@@ -44,6 +44,7 @@ export function CheckoutPage() {
       setLoading(true);
       setError(null);
       try {
+        await beginCheckout(bookingId).catch(() => undefined);
         const detail = await getBooking(bookingId);
         if (!cancelled) setBooking(detail);
       } catch (err) {

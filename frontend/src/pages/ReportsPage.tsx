@@ -103,6 +103,7 @@ export function ReportsPage() {
                 <th className="px-4 py-3">Revenue</th>
                 <th className="px-4 py-3">Confirmed bookings</th>
                 <th className="px-4 py-3">Booked minutes</th>
+                <th className="px-4 py-3">Utilisation</th>
               </tr>
             </thead>
             <tbody>
@@ -115,6 +116,7 @@ export function ReportsPage() {
                   <td className="px-4 py-3">{formatMoney(row.revenueMinor)}</td>
                   <td className="px-4 py-3">{row.confirmedBookings}</td>
                   <td className="px-4 py-3">{row.bookedMinutes}</td>
+                  <td className="px-4 py-3">{row.utilizationPercent === null ? '—' : `${row.utilizationPercent}%`}</td>
                 </tr>
               ))}
             </tbody>

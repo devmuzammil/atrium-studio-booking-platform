@@ -112,6 +112,13 @@ async function processPaymentWebhookOnce(
     return { status: 'ignored' };
   }, { timeout: 30000 }).catch((error) => { throw error; });
 
+  if (result.status !== 'duplicate') {
+    await database.paymentEvent.updateMany({
+      where: { providerDeliveryId: input.deliveryId, processedAt: null },
+      data: { processedAt: new Date() },
+    });
+  }
+
   if (result.status === 'refund_required' && result.refundKey && result.refundChargeId && result.refundAmountMinor !== undefined) {
     await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.refundChargeId, amountMinor: result.refundAmountMinor });
   }

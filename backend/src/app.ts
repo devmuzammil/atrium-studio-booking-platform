@@ -31,12 +31,15 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const paygateHealth = dependencies.paygateHealth || prisma.paygateCharge;
   const instanceId = process.env.INSTANCE_ID || 'local';
   const corsOrigin = process.env.CORS_ORIGIN?.trim();
+  const allowDevelopmentWildcard = process.env.NODE_ENV !== 'production' && (!corsOrigin || corsOrigin === '*');
 
   app.use((request, response, next) => {
     const origin = request.header('origin');
     response.setHeader('x-instance-id', instanceId);
-    if (!corsOrigin || corsOrigin === '*' || !origin || origin === corsOrigin) {
-      response.setHeader('Access-Control-Allow-Origin', corsOrigin && corsOrigin !== '*' && origin ? origin : '*');
+    if (corsOrigin && corsOrigin !== '*' && origin === corsOrigin) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (allowDevelopmentWildcard) {
+      response.setHeader('Access-Control-Allow-Origin', '*');
     }
     response.setHeader('Vary', 'Origin');
     response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-Request-ID');

@@ -178,6 +178,10 @@ response evidence.
 - Frontend: https://atrium-one.vercel.app
 - Deployment uses the Vercel projects configured in `backend/vercel.json` and
   `frontend/vercel.json`.
+- Backend production environment must define
+  `CORS_ORIGIN=https://atrium-one.vercel.app`. Development may omit this value
+  for a wildcard local origin; production fails closed for unconfigured or
+  unrelated origins.
 
 ## Known Issues and What I Did Not Finish
 

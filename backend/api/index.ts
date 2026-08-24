@@ -62,6 +62,12 @@ function normalizePath(url: string): string {
   if (url.startsWith('/api/paygate/')) {
     return `/paygate${url.slice('/api'.length)}`;
   }
+  if (url.startsWith('/api/')) {
+    return url;
+  }
+  if (url.startsWith('/auth/') || url.startsWith('/bookings') || url.startsWith('/venues/') || url.startsWith('/reports/')) {
+    return `/api${url}`;
+  }
   return url;
 }
 

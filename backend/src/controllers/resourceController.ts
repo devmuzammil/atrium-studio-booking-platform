@@ -208,7 +208,7 @@ export async function getRoom(request: Request, response: Response, next: NextFu
 
 export async function listVenueEquipment(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
-    requireAuthenticatedUser(request);
+    const authenticatedRequest = requireAuthenticatedUser(request);
     const venueId = request.params.venueId;
     if (typeof venueId !== 'string') {
       response.status(400).json({ error: 'venueId is required' });
@@ -220,6 +220,7 @@ export async function listVenueEquipment(request: Request, response: Response, n
       response.status(404).json({ error: 'Venue not found' });
       return;
     }
+    authorizeVenueAccess(authenticatedRequest, venueId);
 
     const equipment = await prisma.equipmentType.findMany({
       where: { venueId },
@@ -243,16 +244,17 @@ export async function listVenueEquipment(request: Request, response: Response, n
 
 export async function getRoomAvailabilityWindow(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
-    requireAuthenticatedUser(request);
+    const authenticatedRequest = requireAuthenticatedUser(request);
     const roomId = getResourceId(request);
     const room = await prisma.room.findUnique({
       where: { id: roomId },
-      select: { id: true },
+      select: { id: true, venueId: true },
     });
     if (!room) {
       response.status(404).json({ error: 'Room not found' });
       return;
     }
+    authorizeVenueAccess(authenticatedRequest, room.venueId);
     const window = parseWindow(request);
     response.status(200).json(await getRoomAvailability(prisma, roomId, window.start, window.end));
   } catch (error) {

@@ -148,6 +148,81 @@ describe('JWT authentication and tenant authorization', () => {
     expect(response.body.id).toBe(roomBId);
   });
 
+  it('allows Venue A admin to read availability for a Venue A room', async () => {
+    (prisma.room.findUnique as jest.Mock).mockResolvedValueOnce({ id: roomBId, venueId: venueAId });
+    jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
+
+    const response = await request(app)
+      .get(`/api/rooms/${roomBId}/availability?start=2026-08-26T10:00:00.000Z&end=2026-08-26T11:00:00.000Z`)
+      .set('Authorization', `Bearer ${tokenFor(venueAdminAId)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.roomId).toBe(roomBId);
+  });
+
+  it.each([
+    ['Venue A admin', venueAdminAId],
+    ['Venue A staff', venueStaffAId],
+    ['customer', customerId],
+  ])('denies %s availability access for a valid Venue B room UUID', async (_label, userId) => {
+    const response = await request(app)
+      .get(`/api/rooms/${roomBId}/availability?start=2026-08-26T10:00:00.000Z&end=2026-08-26T11:00:00.000Z`)
+      .set('Authorization', `Bearer ${tokenFor(userId)}`);
+
+    expect([403, 404]).toContain(response.status);
+    expect(response.body).not.toHaveProperty('roomId', roomBId);
+  });
+
+  it('allows PLATFORM_ADMIN to read availability for a valid Venue B room UUID', async () => {
+    jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
+
+    const response = await request(app)
+      .get(`/api/rooms/${roomBId}/availability?start=2026-08-26T10:00:00.000Z&end=2026-08-26T11:00:00.000Z`)
+      .set('Authorization', `Bearer ${tokenFor(platformAdminId)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.roomId).toBe(roomBId);
+  });
+
+  it('allows Venue A admin to list Venue A equipment', async () => {
+    jest.spyOn(prisma.venue, 'findUnique').mockResolvedValue({ id: venueAId } as never);
+    jest.spyOn(prisma.equipmentType, 'findMany').mockResolvedValue([{ id: 'equipment-a', venueId: venueAId, name: 'Venue A Equipment' }] as never);
+
+    const response = await request(app)
+      .get(`/api/venues/${venueAId}/equipment`)
+      .set('Authorization', `Bearer ${tokenFor(venueAdminAId)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.equipment[0].venueId).toBe(venueAId);
+  });
+
+  it.each([
+    ['Venue A admin', venueAdminAId],
+    ['Venue A staff', venueStaffAId],
+    ['customer', customerId],
+  ])('denies %s equipment access for a valid Venue B venue UUID', async (_label, userId) => {
+    jest.spyOn(prisma.venue, 'findUnique').mockResolvedValue({ id: venueBId } as never);
+
+    const response = await request(app)
+      .get(`/api/venues/${venueBId}/equipment`)
+      .set('Authorization', `Bearer ${tokenFor(userId)}`);
+
+    expect([403, 404]).toContain(response.status);
+    expect(response.body).not.toHaveProperty('equipment');
+  });
+
+  it('allows PLATFORM_ADMIN to list Venue B equipment by valid venue UUID', async () => {
+    jest.spyOn(prisma.venue, 'findUnique').mockResolvedValue({ id: venueBId } as never);
+    jest.spyOn(prisma.equipmentType, 'findMany').mockResolvedValue([{ id: 'equipment-b', venueId: venueBId, name: 'Venue B Equipment' }] as never);
+
+    const response = await request(app)
+      .get(`/api/venues/${venueBId}/equipment`)
+      .set('Authorization', `Bearer ${tokenFor(platformAdminId)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.equipment[0].venueId).toBe(venueBId);
+  });
+
   it('denies Venue A admin a Venue B reconciliation report', async () => {
     const response = await request(app)
       .get(`/api/reports/reconciliation?venueId=${venueBId}`)

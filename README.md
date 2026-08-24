@@ -149,25 +149,28 @@ cd frontend
 npm run build
 ```
 
-The mandatory three-replica concurrency proof targets Nginx, not one API:
+The mandatory three-replica concurrency proof creates an isolated database
+fixture, targets Nginx rather than one API, and verifies persisted database
+state plus the `x-instance-id` response header:
 
 ```powershell
+docker compose up --build -d
 cd backend
 $env:CONCURRENCY_API_URL="http://localhost:8080"
-$env:CONCURRENCY_USER_TOKEN="<jwt>"
-$env:CONCURRENCY_ROOM_ID="<room uuid>"
-$env:CONCURRENCY_START="<iso>"
-$env:CONCURRENCY_END="<iso>"
-$env:CONCURRENCY_EQUIPMENT_ID="<equipment uuid>"
-$env:CONCURRENCY_EQUIPMENT_ROOM_IDS="<room-a>,<room-b>,<room-c>"
 npm run test:concurrency
 ```
 
-With the Compose stack and demo seed running, the proof discovers the demo
-credentials, room, venue, and exactly-three-unit equipment fixture itself.
+The test creates one venue, one target room, three additional rooms, and one
+equipment type with exactly three units in the shared PostgreSQL database. It
+cleans those fixture rows after the run without changing the production audit
+trigger. All 200 hold requests use the same one-hour interval and the test
+queries PostgreSQL afterward for the active room count and equipment interval
+maximum.
 
-Expected results are one room `201`, 199 room `409`s, at most three equipment
-successes, and no unexpected `500`s.
+Expected results are one room `201`, 199 room `409`s, three equipment `201`s,
+197 equipment `409`s, zero unexpected responses, one persisted active room
+booking, an equipment maximum of three, and all three replica IDs in the
+response evidence.
 
 ## Deployment
 

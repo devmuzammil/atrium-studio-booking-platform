@@ -236,7 +236,29 @@ the remaining requests receive `409`. The same transaction strategy permits no
 more than three simultaneous units when the equipment capacity is three. The
 proof must run through the load balancer, not directly against one process.
 
-### Verified runtime evidence (2026-08-25)
+### Mandatory 200-Request Concurrency Proof
+
+Environment:
+- PostgreSQL 16 Alpine in Compose
+- Nginx 1.27 Alpine load balancer
+- API replicas: 3 (`api-1`, `api-2`, `api-3`)
+- Test endpoint: `POST /api/bookings/holds` through `http://localhost:8080`
+- Equipment capacity: exactly 3 units
+- Requests: 200 per scenario
+
+Topology:
+
+```text
+Client -> Nginx -> API-1/API-2/API-3 -> shared PostgreSQL
+```
+
+The proof creates an isolated fixture, sends all requests through Nginx, records
+the `x-instance-id` response header, and queries PostgreSQL after each burst.
+The room assertion checks one persisted active booking for the interval. The
+equipment assertion computes the maximum interval sweep quantity and requires
+it to be at most three.
+
+Verified runtime evidence (2026-08-25)
 
 The Compose configuration validated successfully. The shared PostgreSQL
 container, three API replicas, and Nginx were all running and healthy. Thirty
@@ -246,18 +268,35 @@ PostgreSQL and Paygate dependencies as healthy. The `btree_gist` extension and
 `audit_events_append_only` trigger were present in PostgreSQL.
 
 The mandatory proof was executed through Nginx on the local Compose stack with
-three healthy API replicas and a clean demo seed. The exact test output was:
+three healthy API replicas and an isolated database fixture. The exact test
+output was:
 
 ```text
-Room proof counts { successes: 1, conflicts: 199, unexpected: 0, samples: [] }
-Equipment proof counts { successes: 3, conflicts: 197, unexpected: 0, samples: '[]' }
+Room proof counts {
+  requests: 200,
+  successes: 1,
+  conflicts: 199,
+  unexpected: 0,
+  persistedBookings: 1,
+  replicas: [ 'api-2', 'api-1', 'api-3' ],
+  samples: []
+}
+Equipment proof counts {
+  requests: 200,
+  successes: 3,
+  conflicts: 197,
+  unexpected: 0,
+  maximumReserved: 3,
+  replicas: [ 'api-2', 'api-1', 'api-3' ],
+  samples: '[]'
+}
 Test Suites: 1 passed, 1 total
 Tests:       2 passed, 2 total
 ```
 
-No duplicate active room bookings or equipment over-allocation occurred. The
-tenant-isolation negative test passed, including direct access to valid resource
-UUIDs in another venue. The payment integrity suite passed 10/10.
+No duplicate active room bookings or equipment over-allocation occurred, and
+all three replicas participated in both bursts. The proof does not claim that
+the public Vercel deployment has this three-replica Docker topology.
 
 The Paygate chaos burst was executed with `PAYGATE_CHAOS=on`, but remains
 unverified because an earlier 100-attempt run produced Nginx `502` responses

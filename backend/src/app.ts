@@ -34,6 +34,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
 
   app.use((request, response, next) => {
     const origin = request.header('origin');
+    response.setHeader('x-instance-id', instanceId);
     if (!corsOrigin || corsOrigin === '*' || !origin || origin === corsOrigin) {
       response.setHeader('Access-Control-Allow-Origin', corsOrigin && corsOrigin !== '*' && origin ? origin : '*');
     }

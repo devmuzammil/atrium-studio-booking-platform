@@ -172,6 +172,26 @@ Expected results are one room `201`, 199 room `409`s, three equipment `201`s,
 booking, an equipment maximum of three, and all three replica IDs in the
 response evidence.
 
+## Performance Benchmark
+
+The full-profile benchmark is local-only. Reset the disposable database, apply
+migrations, seed `--profile=full`, and start the Compose stack as described in
+[LOAD_TEST.md](LOAD_TEST.md). Then run the native Node benchmark through Nginx:
+
+```powershell
+cd backend
+$env:BENCHMARK_EMAIL="admin-a@atrium.local"
+$env:BENCHMARK_PASSWORD="<seeded password>"
+node performance/benchmark.mjs
+```
+
+The script measures room availability, combined cross-venue search, holds, and
+the 30-day revenue report. It prints p50/p95/p99 and error rates. The measured
+results and complete availability `EXPLAIN (ANALYZE, BUFFERS)` captures are in
+[LOAD_TEST.md](LOAD_TEST.md), with raw plan output in
+[docs/performance/explain-availability-before.txt](docs/performance/explain-availability-before.txt)
+and [docs/performance/explain-availability-after.txt](docs/performance/explain-availability-after.txt).
+
 ## Deployment
 
 - API: https://atrium-api.vercel.app

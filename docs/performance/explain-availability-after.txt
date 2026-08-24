@@ -1,0 +1,17 @@
+Command:
+EXPLAIN (ANALYZE, BUFFERS) SELECT lower(b.slot) AS start, upper(b.slot) AS end, b.status::text AS status FROM bookings b WHERE b.room_id = '08339426-770c-4736-a61a-0d9fb1197647'::uuid AND b.status IN ('HELD','PENDING_PAYMENT','CONFIRMED') AND b.protected_slot && tstzrange('2026-08-26T10:00:00Z'::timestamptz,'2026-09-02T10:00:00Z'::timestamptz,'[)') ORDER BY lower(b.slot);
+
+                                                                               QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=8.16..8.17 rows=1 width=48) (actual time=0.402..0.403 rows=1 loops=1)
+   Sort Key: (lower(slot))
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=32
+   ->  Index Scan using bookings_active_room_slot_gist_idx on bookings b  (cost=0.12..8.15 rows=1 width=48) (actual time=0.379..0.380 rows=1 loops=1)
+         Index Cond: ((room_id = '08339426-770c-4736-a61a-0d9fb1197647'::uuid) AND (protected_slot && '["2026-08-26 10:00:00+00","2026-09-02 10:00:00+00")'::tstzrange))
+         Buffers: shared hit=29
+ Planning:
+   Buffers: shared hit=222
+ Planning Time: 1.613 ms
+ Execution Time: 0.440 ms
+(11 rows)

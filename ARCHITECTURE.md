@@ -447,9 +447,10 @@ CREATE INDEX bookings_venue_start_idx ON bookings (room_id, lower(slot));
 CREATE INDEX line_items_equipment_idx ON booking_line_items (equipment_type_id, booking_id);
 ```
 
-The final submission will include `EXPLAIN (ANALYZE, BUFFERS)` for the full
-profile before and after these indexes in `LOAD_TEST.md`, alongside p50, p95,
-p99, error rate, and machine details. The target is under 300 ms p95 for
+Measured full-profile benchmark and plan evidence are recorded in
+`LOAD_TEST.md`. The no-index baseline used disabled index-scan planner settings
+on the same data because the production GiST index already existed; the normal
+plan used `bookings_active_room_slot_gist_idx`. The target is under 300 ms p95 for
 seven-day availability, under 500 ms for combined cross-venue search, under
 250 ms for holds, and under 800 ms for a 30-day revenue report. Reports use
 date-range predicates and grouped indexed booking data; expensive work is not

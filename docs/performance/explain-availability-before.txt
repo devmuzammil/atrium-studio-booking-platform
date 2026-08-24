@@ -1,0 +1,27 @@
+Command:
+BEGIN; SET LOCAL enable_indexscan=off; SET LOCAL enable_bitmapscan=off; EXPLAIN (ANALYZE, BUFFERS) SELECT lower(b.slot) AS start, upper(b.slot) AS end, b.status::text AS status FROM bookings b WHERE b.room_id = '08339426-770c-4736-a61a-0d9fb1197647'::uuid AND b.status IN ('HELD','PENDING_PAYMENT','CONFIRMED') AND b.protected_slot && tstzrange('2026-08-26T10:00:00Z'::timestamptz,'2026-09-02T10:00:00Z'::timestamptz,'[)') ORDER BY lower(b.slot);
+
+BEGIN
+SET
+SET
+                                                                                                                      QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=8281.45..8281.45 rows=1 width=48) (actual time=21.860..24.385 rows=1 loops=1)
+   Sort Key: (lower(slot))
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=5407
+   ->  Gather  (cost=1000.00..8281.44 rows=1 width=48) (actual time=21.630..24.352 rows=1 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=5404
+         ->  Parallel Seq Scan on bookings b  (cost=0.00..7281.34 rows=1 width=48) (actual time=15.147..18.093 rows=0 loops=3)
+               Filter: ((protected_slot && '["2026-08-26 10:00:00+00","2026-09-02 10:00:00+00")'::tstzrange) AND (room_id = '08339426-770c-4736-a61a-0d9fb1197647'::uuid) AND (status = ANY ('{HELD,PENDING_PAYMENT,CONFIRMED}'::"BookingStatus"[])))
+               Rows Removed by Filter: 83349
+               Buffers: shared hit=5404
+ Planning:
+   Buffers: shared hit=222
+ Planning Time: 1.039 ms
+ Execution Time: 24.430 ms
+(16 rows)
+
+ROLLBACK

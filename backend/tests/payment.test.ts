@@ -241,6 +241,22 @@ describe('Paygate and payment integrity', () => {
     expect(await prisma.auditEvent.count({ where: { bookingId, toStatus: BookingStatus.CONFIRMED } })).toBe(1);
   });
 
+  it('ignores duplicate failure delivery without another state transition', async () => {
+    const bookingId = await createHeldBooking();
+    await request(app).post(`/api/bookings/${bookingId}/payment`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'payment-key');
+    const failed = { charge_id: 'ch_payment_test', reference: bookingId, event: 'charge.failed', amount_minor: 12500, currency: 'PKR' };
+    const deliveryId = randomUUID();
+
+    const first = await webhook(failed, deliveryId);
+    const duplicate = await webhook(failed, deliveryId);
+
+    expect(first.status).toBe(200);
+    expect(duplicate.status).toBe(200);
+    expect((await prisma.payment.findFirst({ where: { bookingId } }))?.status).toBe(PaymentStatus.FAILED);
+    expect(await prisma.auditEvent.count({ where: { bookingId, toStatus: BookingStatus.FAILED } })).toBe(1);
+    expect(await prisma.paymentEvent.count({ where: { providerDeliveryId: deliveryId } })).toBe(1);
+  });
+
   it('records an unknown charge webhook for recovery', async () => {
     const response = await webhook({ charge_id: 'ch_unknown', reference: randomUUID(), event: 'charge.succeeded', amount_minor: 100, currency: 'PKR' });
 

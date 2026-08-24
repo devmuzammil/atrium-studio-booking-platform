@@ -340,6 +340,15 @@ attempt results, not as a reliable request/response dependency.
   handler records the captured charge, creates a recoverable pending refund,
   and submits one refund with a deterministic refund idempotency key.
 
+The legal provider-event progression is `PROCESSING -> SUCCEEDED` or
+`PROCESSING -> FAILED`; a later authoritative `FAILED -> SUCCEEDED` is also
+accepted and follows the normal confirmation or late-refund path. Duplicate
+delivery IDs are ignored. A `SUCCEEDED -> FAILED` event is ignored because a
+captured payment is terminal, as is a timestamped event older than the latest
+accepted event. Duplicate failures create no second booking transition. These
+rules preserve captured-money recovery without allowing arbitrary state
+regressions.
+
 The unique constraints on payment booking/attempt, provider charge ID, event
 delivery ID, and refund idempotency key provide database enforcement. The
 reconciliation report compares every captured charge with exactly one confirmed

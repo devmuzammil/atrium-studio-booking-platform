@@ -149,6 +149,9 @@
 - Issue 4 follow-up: webhook processing now serializes on the payment row,
   persists stale events, and uses provider timestamps without allowing a
   captured payment to regress. Focused payment coverage is 14 passing tests.
+- Issue 5 follow-up: verified the explicit provider progression rules for
+  processing, failure, recovery to success, duplicate delivery, terminal
+  success, and late success after expiry. Added duplicate-failure coverage.
 - Paygate chaos, full-profile latency numbers, and `EXPLAIN ANALYZE` captures
   remain unverified.
 

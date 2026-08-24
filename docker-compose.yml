@@ -90,6 +90,24 @@ services:
       timeout: 5s
       retries: 10
 
+  worker:
+    build:
+      context: ./backend
+    container_name: atrium-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://atrium:atrium_password@postgres:5432/atrium?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret}
+      PAYGATE_CHAOS: ${PAYGATE_CHAOS:-off}
+      RUN_WORKER: "false"
+    networks:
+      - atrium-net
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+
   nginx:
     image: nginx:1.27-alpine
     container_name: atrium-nginx

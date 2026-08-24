@@ -163,7 +163,6 @@ describe('JWT authentication and tenant authorization', () => {
   it.each([
     ['Venue A admin', venueAdminAId],
     ['Venue A staff', venueStaffAId],
-    ['customer', customerId],
   ])('denies %s availability access for a valid Venue B room UUID', async (_label, userId) => {
     const response = await request(app)
       .get(`/api/rooms/${roomBId}/availability?start=2026-08-26T10:00:00.000Z&end=2026-08-26T11:00:00.000Z`)
@@ -171,6 +170,17 @@ describe('JWT authentication and tenant authorization', () => {
 
     expect([403, 404]).toContain(response.status);
     expect(response.body).not.toHaveProperty('roomId', roomBId);
+  });
+
+  it('allows a customer to read availability for a searched room in another venue', async () => {
+    jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
+
+    const response = await request(app)
+      .get(`/api/rooms/${roomBId}/availability?start=2026-08-26T10:00:00.000Z&end=2026-08-26T11:00:00.000Z`)
+      .set('Authorization', `Bearer ${tokenFor(customerId)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.roomId).toBe(roomBId);
   });
 
   it('allows PLATFORM_ADMIN to read availability for a valid Venue B room UUID', async () => {
@@ -199,7 +209,6 @@ describe('JWT authentication and tenant authorization', () => {
   it.each([
     ['Venue A admin', venueAdminAId],
     ['Venue A staff', venueStaffAId],
-    ['customer', customerId],
   ])('denies %s equipment access for a valid Venue B venue UUID', async (_label, userId) => {
     jest.spyOn(prisma.venue, 'findUnique').mockResolvedValue({ id: venueBId } as never);
 
@@ -209,6 +218,18 @@ describe('JWT authentication and tenant authorization', () => {
 
     expect([403, 404]).toContain(response.status);
     expect(response.body).not.toHaveProperty('equipment');
+  });
+
+  it('allows a customer to list equipment for a searched room venue', async () => {
+    jest.spyOn(prisma.venue, 'findUnique').mockResolvedValue({ id: venueBId } as never);
+    jest.spyOn(prisma.equipmentType, 'findMany').mockResolvedValue([{ id: 'equipment-b', venueId: venueBId, name: 'Venue B Equipment' }] as never);
+
+    const response = await request(app)
+      .get(`/api/venues/${venueBId}/equipment`)
+      .set('Authorization', `Bearer ${tokenFor(customerId)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.equipment[0].venueId).toBe(venueBId);
   });
 
   it('allows PLATFORM_ADMIN to list Venue B equipment by valid venue UUID', async () => {

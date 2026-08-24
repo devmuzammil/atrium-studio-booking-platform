@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
 import { authorizeBookingAccess, requireAuthenticatedUser } from '../middleware/authorization';
-import { localPaymentProvider, PaymentProvider, processPaymentWebhook, startPayment } from '../services/paymentService';
+import { localPaymentProvider, PaymentProvider, startPayment } from '../services/paymentService';
 import { verifyPaygateSignature } from '../services/paygateService';
+import { enqueueWebhook } from '../services/webhookJobService';
+import { processPersistedPaymentEvent } from '../services/paymentService';
 import type { RawBodyRequest } from '../app';
 import type { RequestContextRequest } from '../middleware/requestContext';
 
@@ -36,7 +38,7 @@ export async function receivePaygateWebhook(request: Request, response: Response
       response.status(400).json({ error: 'Invalid Paygate webhook payload' });
       return;
     }
-    const result = await processPaymentWebhook(prisma, {
+    const webhook = {
       deliveryId,
       chargeId: body.charge_id,
       reference: body.reference,
@@ -45,7 +47,13 @@ export async function receivePaygateWebhook(request: Request, response: Response
       currency: typeof body.currency === 'string' ? body.currency : undefined,
       occurredAt: typeof body.occurred_at === 'string' ? new Date(body.occurred_at) : undefined,
       correlationId: requestId,
-    }, provider || localPaymentProvider(prisma));
-    response.status(200).json(result);
+    };
+    const queued = await enqueueWebhook(prisma, webhook);
+    const result = await processPersistedPaymentEvent(prisma, queued.eventId, webhook, provider || localPaymentProvider(prisma));
+    await prisma.webhookJob.update({
+      where: { id: queued.jobId },
+      data: { status: 'SUCCEEDED', lockedAt: null, lockedBy: null, processedAt: new Date(), lastError: null },
+    });
+    response.status(200).json({ status: result.status, job_id: queued.jobId });
   } catch (error) { next(error); }
 }

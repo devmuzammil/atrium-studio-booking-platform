@@ -60,7 +60,9 @@ export function authorizeVenueAccess(
   venueId: string,
   allowedRoles: readonly UserRole[] = [UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN],
 ): void {
-  if (hasGlobalRole(request, UserRole.PLATFORM_ADMIN) || hasVenueRole(request, venueId, allowedRoles)) {
+  if (hasGlobalRole(request, UserRole.PLATFORM_ADMIN)
+    || (allowedRoles.includes(UserRole.CUSTOMER) && hasGlobalRole(request, UserRole.CUSTOMER))
+    || hasVenueRole(request, venueId, allowedRoles)) {
     return;
   }
 
@@ -86,7 +88,8 @@ export function requireAuthenticatedUser(request: Request): AuthenticatedRequest
 
 export function authorizeHoldCreation(request: AuthenticatedRequest, venueId: string): void {
   if (hasGlobalRole(request, UserRole.PLATFORM_ADMIN)
-    || hasVenueRole(request, venueId, [UserRole.CUSTOMER, UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN])) {
+    || hasGlobalRole(request, UserRole.CUSTOMER)
+    || hasVenueRole(request, venueId, [UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN])) {
     return;
   }
 

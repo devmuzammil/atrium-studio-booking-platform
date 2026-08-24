@@ -60,6 +60,8 @@ async function processPaymentWebhookOnce(
   database: PrismaClient,
   input: { deliveryId: string; chargeId: string; reference: string; event: string; amountMinor: number; currency?: string; occurredAt?: Date; correlationId?: string },
   provider: PaymentProvider,
+  eventId?: string,
+  persistEvent = true,
 ): Promise<{ status: string }> {
   const result = await database.$transaction(async (transaction) => {
     const paymentLock = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
@@ -69,27 +71,29 @@ async function processPaymentWebhookOnce(
       ? await transaction.payment.findUnique({ where: { id: paymentLock[0].id } })
       : null;
     const latestEvent = await transaction.paymentEvent.findFirst({
-      where: { providerChargeId: input.chargeId },
+      where: { providerChargeId: input.chargeId, ...(eventId ? { id: { not: eventId } } : {}) },
       orderBy: { createdAt: 'desc' },
       select: { event: true, occurredAt: true },
     });
     const staleEvent = latestEvent?.event === 'CHARGE_SUCCEEDED'
       || (latestEvent?.occurredAt && input.occurredAt && input.occurredAt < latestEvent.occurredAt);
-    try {
-      await transaction.paymentEvent.create({
-        data: {
-          providerDeliveryId: input.deliveryId,
-          providerChargeId: input.chargeId,
-          event: input.event === 'charge.succeeded' ? 'CHARGE_SUCCEEDED' : input.event === 'charge.failed' ? 'CHARGE_FAILED' : 'UNKNOWN',
-          payload: JSON.parse(JSON.stringify(input)) as Prisma.InputJsonValue,
-          signatureValid: true,
-          occurredAt: input.occurredAt,
-          correlationId: input.correlationId,
-        },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return { status: 'duplicate' };
-      throw error;
+    if (persistEvent) {
+      try {
+        await transaction.paymentEvent.create({
+          data: {
+            providerDeliveryId: input.deliveryId,
+            providerChargeId: input.chargeId,
+            event: input.event === 'charge.succeeded' ? 'CHARGE_SUCCEEDED' : input.event === 'charge.failed' ? 'CHARGE_FAILED' : 'UNKNOWN',
+            payload: JSON.parse(JSON.stringify(input)) as Prisma.InputJsonValue,
+            signatureValid: true,
+            occurredAt: input.occurredAt,
+            correlationId: input.correlationId,
+          },
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return { status: 'duplicate' };
+        throw error;
+      }
     }
     if (!payment) return { status: 'recorded_unknown' };
     if (payment.amountMinor !== input.amountMinor || (input.currency && payment.currency !== input.currency) || payment.bookingId !== input.reference) return { status: 'payment_mismatch' };
@@ -120,7 +124,7 @@ async function processPaymentWebhookOnce(
     return { status: 'ignored' };
   }, { timeout: 30000 }).catch((error) => { throw error; });
 
-  if (result.status !== 'duplicate') {
+  if (persistEvent && result.status !== 'duplicate') {
     await database.paymentEvent.updateMany({
       where: { providerDeliveryId: input.deliveryId, processedAt: null },
       data: { processedAt: new Date() },
@@ -166,6 +170,15 @@ export async function processPaymentWebhook(
   }
 
   throw new Error('Webhook processing retry limit reached');
+}
+
+export async function processPersistedPaymentEvent(
+  database: PrismaClient,
+  eventId: string,
+  input: { deliveryId: string; chargeId: string; reference: string; event: string; amountMinor: number; currency?: string; occurredAt?: Date; correlationId?: string },
+  provider: PaymentProvider,
+): Promise<{ status: string }> {
+  return processPaymentWebhookOnce(database, input, provider, eventId, false);
 }
 
 export function localPaymentProvider(database: PrismaClient): PaymentProvider {

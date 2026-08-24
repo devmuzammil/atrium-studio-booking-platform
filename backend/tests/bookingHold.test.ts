@@ -144,10 +144,10 @@ describe('POST /api/bookings/holds', () => {
     expect(response.status).toBe(401);
   });
 
-  it('rejects a room belonging to another venue', async () => {
+  it('allows a customer to book a searched room from another venue', async () => {
     const response = await hold({ roomId: otherRoomId });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(201);
   });
 
   it.each([

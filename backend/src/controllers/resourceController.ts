@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { UserRole } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { authorizeBookingAccess, authorizeVenueAccess, authorizeVenueAdmin, requireAuthenticatedUser } from '../middleware/authorization';
 import { getBookingDetail, listBookingsForUser } from '../services/bookingQueryService';
@@ -199,7 +200,7 @@ export async function getRoom(request: Request, response: Response, next: NextFu
       return;
     }
 
-    authorizeVenueAccess(authenticatedRequest, room.venueId);
+    authorizeVenueAccess(authenticatedRequest, room.venueId, [UserRole.CUSTOMER, UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN]);
     response.status(200).json(room);
   } catch (error) {
     next(error);
@@ -220,7 +221,7 @@ export async function listVenueEquipment(request: Request, response: Response, n
       response.status(404).json({ error: 'Venue not found' });
       return;
     }
-    authorizeVenueAccess(authenticatedRequest, venueId);
+    authorizeVenueAccess(authenticatedRequest, venueId, [UserRole.CUSTOMER, UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN]);
 
     const equipment = await prisma.equipmentType.findMany({
       where: { venueId },
@@ -254,7 +255,7 @@ export async function getRoomAvailabilityWindow(request: Request, response: Resp
       response.status(404).json({ error: 'Room not found' });
       return;
     }
-    authorizeVenueAccess(authenticatedRequest, room.venueId);
+    authorizeVenueAccess(authenticatedRequest, room.venueId, [UserRole.CUSTOMER, UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN]);
     const window = parseWindow(request);
     response.status(200).json(await getRoomAvailability(prisma, roomId, window.start, window.end));
   } catch (error) {

@@ -30,6 +30,8 @@ import { app } from '../src/app';
 import { prisma } from '../src/config/prisma';
 import { expireDueHolds } from '../src/services/holdExpiryService';
 import { completeDueBookings } from '../src/services/bookingCompletionService';
+import { processWebhookJobs } from '../src/services/webhookJobService';
+import { localPaymentProvider } from '../src/services/paymentService';
 
 type NodeRequest = Parameters<typeof app>[0];
 type NodeResponse = Parameters<typeof app>[1];
@@ -99,9 +101,11 @@ export default function handler(req: NodeRequest, res: NodeResponse): void {
       return;
     }
     void runHousekeeping().then(() => {
+      return processWebhookJobs(prisma, localPaymentProvider(prisma), 10);
+    }).then((processed) => {
       res.statusCode = 200;
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ ok: true }));
+      res.end(JSON.stringify({ ok: true, processed }));
     });
     return;
   }

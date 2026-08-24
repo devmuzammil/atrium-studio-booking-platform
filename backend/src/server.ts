@@ -5,6 +5,7 @@ import { expireDueHolds } from './services/holdExpiryService';
 import { completeDueBookings } from './services/bookingCompletionService';
 import { localPaymentProvider } from './services/paymentService';
 import { retryPendingRefunds } from './services/cancellationService';
+import { processWebhookJobs } from './services/webhookJobService';
 
 function startBackgroundLoops(): NodeJS.Timeout | null {
   if (process.env.RUN_WORKER === 'false') {
@@ -25,6 +26,9 @@ function startBackgroundLoops(): NodeJS.Timeout | null {
     });
     void retryPendingRefunds(prisma, localPaymentProvider(prisma)).catch((error: unknown) => {
       console.error('Refund retry poll failed:', error);
+    });
+    void processWebhookJobs(prisma, localPaymentProvider(prisma)).catch((error: unknown) => {
+      console.error('Webhook job poll failed:', error);
     });
   }, intervalMs);
 }

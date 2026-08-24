@@ -3,6 +3,7 @@ import { getConfig } from './config/env';
 import { expireDueHolds } from './services/holdExpiryService';
 import { localPaymentProvider } from './services/paymentService';
 import { retryPendingRefunds } from './services/cancellationService';
+import { processWebhookJobs } from './services/webhookJobService';
 
 const pollIntervalMs = 1000;
 
@@ -25,6 +26,7 @@ async function runWorker(): Promise<void> {
     try {
       await expireDueHolds(prisma);
       await retryPendingRefunds(prisma, localPaymentProvider(prisma));
+      await processWebhookJobs(prisma, localPaymentProvider(prisma));
     } catch (error) {
       console.error('Hold expiry poll failed:', error);
     }

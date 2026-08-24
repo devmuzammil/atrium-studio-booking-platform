@@ -28,6 +28,7 @@ export function BookPage() {
   const [equipment, setEquipment] = useState<EquipmentType[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [loadingEquipment, setLoadingEquipment] = useState(false);
+  const [equipmentError, setEquipmentError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [correlationId, setCorrelationId] = useState<string | undefined>();
@@ -37,13 +38,14 @@ export function BookPage() {
     let cancelled = false;
     async function load(): Promise<void> {
       setLoadingEquipment(true);
+      setEquipmentError(null);
       try {
         const result = await listEquipment(room!.venueId);
         if (!cancelled) setEquipment(result.equipment);
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof ApiError ? err.message : 'Unable to load equipment';
-          setError(message);
+          setEquipmentError(message);
         }
       } finally {
         if (!cancelled) setLoadingEquipment(false);
@@ -138,8 +140,9 @@ export function BookPage() {
         </div>
 
         <section>
-          <h3 className="text-lg font-semibold text-slate-900">Equipment (optional)</h3>
+          <h3 className="text-lg font-semibold text-slate-900">Equipment</h3>
           {loadingEquipment ? <div className="mt-3"><LoadingSpinner label="Loading equipment…" /></div> : null}
+          {!loadingEquipment && equipmentError ? <Alert tone="danger">Equipment could not be loaded: {equipmentError}</Alert> : null}
           <div className="mt-3 space-y-3">
             {equipment.map((item) => (
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ece7de] px-3 py-3">
@@ -160,7 +163,7 @@ export function BookPage() {
                 </label>
               </div>
             ))}
-            {!loadingEquipment && equipment.length === 0 ? <p className="text-sm text-slate-600">No equipment listed for this venue.</p> : null}
+            {!loadingEquipment && !equipmentError && equipment.length === 0 ? <p className="text-sm text-slate-600">No equipment is available for this venue.</p> : null}
           </div>
         </section>
 

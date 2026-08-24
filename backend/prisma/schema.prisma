@@ -53,6 +53,14 @@ enum PaymentEventType {
   UNKNOWN
 }
 
+enum WebhookJobStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  RETRY
+  DEAD_LETTER
+}
+
 enum InventoryType {
   ROOM
   EQUIPMENT
@@ -266,9 +274,28 @@ model PaymentEvent {
   createdAt          DateTime         @default(now()) @map("created_at")
   correlationId      String?          @map("correlation_id")
   payment            Payment?         @relation(fields: [providerChargeId], references: [providerChargeId])
+  webhookJob         WebhookJob?
 
   @@index([providerChargeId])
   @@map("payment_events")
+}
+
+model WebhookJob {
+  id             String          @id @default(uuid()) @db.Uuid
+  paymentEventId String          @unique @map("payment_event_id") @db.Uuid
+  status         WebhookJobStatus @default(PENDING)
+  attemptCount   Int             @default(0) @map("attempt_count")
+  nextAttemptAt  DateTime        @default(now()) @map("next_attempt_at")
+  lockedAt       DateTime?       @map("locked_at")
+  lockedBy       String?         @map("locked_by")
+  lastError      String?         @map("last_error")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  processedAt    DateTime?       @map("processed_at")
+  paymentEvent   PaymentEvent   @relation(fields: [paymentEventId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([status, lockedAt])
+  @@map("webhook_jobs")
 }
 
 model AuditEvent {

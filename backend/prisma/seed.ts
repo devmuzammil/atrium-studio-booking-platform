@@ -22,6 +22,36 @@ function distribute(total: number, count: number, index: number): number {
   return Math.floor(total / count) + (index < total % count ? 1 : 0);
 }
 
+async function verifySeed(profileName: ProfileName): Promise<void> {
+  const expected = profiles[profileName];
+  const [venues, rooms, equipment, bookings, users, orphanRooms, orphanEquipment, orphanBookings] = await Promise.all([
+    prisma.venue.count(),
+    prisma.room.count(),
+    prisma.equipmentType.aggregate({ _sum: { totalUnits: true } }),
+    prisma.booking.count(),
+    prisma.user.count(),
+    prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`SELECT count(*)::int AS count FROM rooms r LEFT JOIN venues v ON v.id = r.venue_id WHERE v.id IS NULL`),
+    prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`SELECT count(*)::int AS count FROM equipment_types e LEFT JOIN venues v ON v.id = e.venue_id WHERE v.id IS NULL`),
+    prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`SELECT count(*)::int AS count FROM bookings b LEFT JOIN rooms r ON r.id = b.room_id LEFT JOIN venues v ON v.id = r.venue_id WHERE v.id IS NULL`),
+  ]);
+  const orphanCounts = {
+    rooms: orphanRooms[0]?.count ?? 0,
+    equipment: orphanEquipment[0]?.count ?? 0,
+    bookings: orphanBookings[0]?.count ?? 0,
+  };
+  const actual = {
+    venues,
+    rooms,
+    equipment: equipment._sum.totalUnits ?? 0,
+    bookings,
+    users,
+  };
+  if (JSON.stringify(actual) !== JSON.stringify(expected) || Object.values(orphanCounts).some((count) => count > 0)) {
+    throw new Error(`Seed verification failed for ${profileName}: ${JSON.stringify({ actual, expected, orphanCounts })}`);
+  }
+  console.log(`Verified ${profileName}: ${actual.venues} venues, ${actual.rooms} rooms, ${actual.equipment} equipment units, ${actual.bookings} bookings, ${actual.users} users`);
+}
+
 async function seedDemoAccounts(venueAId: string, venueBId: string): Promise<void> {
   const passwordHash = hashPassword(DEMO_PASSWORD);
   const accounts = [
@@ -132,6 +162,7 @@ async function main(): Promise<void> {
   }
 
   await seedDemoAccounts(venueIds[0], venueIds[1] ?? venueIds[0]);
+  await verifySeed(requestedProfile);
 
   console.log(`Seeded ${requestedProfile}: ${profile.venues} venues, ${profile.rooms} rooms, ${profile.equipment} equipment units, ${profile.bookings} bookings, ${profile.users} users`);
 }

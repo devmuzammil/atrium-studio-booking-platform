@@ -213,6 +213,34 @@ describe('Paygate and payment integrity', () => {
     expect(provider.refund).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores an older success that arrives after a newer failure', async () => {
+    const bookingId = await createHeldBooking();
+    await request(app).post(`/api/bookings/${bookingId}/payment`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'payment-key');
+    const newerFailure = { charge_id: 'ch_payment_test', reference: bookingId, event: 'charge.failed', amount_minor: 12500, currency: 'PKR', occurred_at: '2026-08-25T12:00:00.000Z' };
+    const olderSuccess = { ...newerFailure, event: 'charge.succeeded', occurred_at: '2026-08-25T11:00:00.000Z' };
+
+    await webhook(newerFailure);
+    await webhook(olderSuccess, randomUUID());
+
+    expect((await prisma.payment.findFirst({ where: { bookingId } }))?.status).toBe(PaymentStatus.FAILED);
+    expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.FAILED);
+    expect(await prisma.refund.count({ where: { bookingId } })).toBe(0);
+  });
+
+  it('does not regress a captured payment when a failure arrives later', async () => {
+    const bookingId = await createHeldBooking();
+    await request(app).post(`/api/bookings/${bookingId}/payment`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'payment-key');
+    const success = { charge_id: 'ch_payment_test', reference: bookingId, event: 'charge.succeeded', amount_minor: 12500, currency: 'PKR', occurred_at: '2026-08-25T11:00:00.000Z' };
+    const laterFailure = { ...success, event: 'charge.failed', occurred_at: '2026-08-25T12:00:00.000Z' };
+
+    await webhook(success);
+    await webhook(laterFailure, randomUUID());
+
+    expect((await prisma.payment.findFirst({ where: { bookingId } }))?.status).toBe(PaymentStatus.SUCCEEDED);
+    expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.CONFIRMED);
+    expect(await prisma.auditEvent.count({ where: { bookingId, toStatus: BookingStatus.CONFIRMED } })).toBe(1);
+  });
+
   it('records an unknown charge webhook for recovery', async () => {
     const response = await webhook({ charge_id: 'ch_unknown', reference: randomUUID(), event: 'charge.succeeded', amount_minor: 100, currency: 'PKR' });
 

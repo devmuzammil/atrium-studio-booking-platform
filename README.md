@@ -122,6 +122,20 @@ Room double-booking is enforced by a PostgreSQL exclusion constraint. Equipment
 capacity is enforced with `SELECT ... FOR UPDATE` and an interval sweep. Both
 mechanisms live in the database, not in process memory.
 
+Venue-scoped resource reads resolve the target room or venue first and use the
+shared authorization policy; cross-venue UUID access is denied. Internal mock
+Paygate charge/refund routes require the signed provider request, while booking
+payments and webhooks use their separate authenticated/signature boundaries.
+Refunds lock the charge row, enforce captured amount and currency limits, and
+use durable idempotency keys. Failed refunds remain `PROCESSING` and are
+retryable rather than being reported as complete.
+
+Webhook events are persisted before their business effect. Payment rows are
+locked while applying events; a captured success is terminal over later
+failures, and timestamped events older than the latest event are ignored while
+remaining queryable for reconciliation. A success after hold expiry creates a
+pending refund and cannot confirm the booking.
+
 ## Tests and builds
 
 ```powershell

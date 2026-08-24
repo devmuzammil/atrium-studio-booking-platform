@@ -146,6 +146,9 @@
 - Vercel backend and frontend deployments were verified at the URLs in
   `README.md`. Production health, login, CORS, venue authorization, and
   unauthenticated Paygate refund protection were checked.
+- Issue 4 follow-up: webhook processing now serializes on the payment row,
+  persists stale events, and uses provider timestamps without allowing a
+  captured payment to regress. Focused payment coverage is 14 passing tests.
 - Paygate chaos, full-profile latency numbers, and `EXPLAIN ANALYZE` captures
   remain unverified.
 

@@ -59,6 +59,9 @@ function normalizePath(url: string): string {
   if (url.startsWith('/api/health')) {
     return `/health${url.slice('/api/health'.length)}`;
   }
+  if (url.startsWith('/api/paygate/webhook')) {
+    return url;
+  }
   if (url.startsWith('/api/paygate/')) {
     return `/paygate${url.slice('/api'.length)}`;
   }

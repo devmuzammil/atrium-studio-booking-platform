@@ -333,7 +333,9 @@ attempt results, not as a reliable request/response dependency.
 5. The webhook request currently locks the payment and booking, applies the
   event, and commits the booking transition plus audit event atomically.
   Duplicate deliveries and stale out-of-order events have no second business
-  effect.
+  effect. Events are persisted even when stale. The payment row is locked
+  before comparing events; a successful capture is terminal over failures, and
+  timestamped events older than the latest event are ignored.
 6. A success received after `HELD` has expired cannot confirm the booking. The
   handler records the captured charge, creates a recoverable pending refund,
   and submits one refund with a deterministic refund idempotency key.

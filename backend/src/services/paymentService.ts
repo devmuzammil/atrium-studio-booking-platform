@@ -62,6 +62,19 @@ async function processPaymentWebhookOnce(
   provider: PaymentProvider,
 ): Promise<{ status: string }> {
   const result = await database.$transaction(async (transaction) => {
+    const paymentLock = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT id FROM payments WHERE provider_charge_id = ${input.chargeId} FOR UPDATE
+    `);
+    const payment = paymentLock.length > 0
+      ? await transaction.payment.findUnique({ where: { id: paymentLock[0].id } })
+      : null;
+    const latestEvent = await transaction.paymentEvent.findFirst({
+      where: { providerChargeId: input.chargeId },
+      orderBy: { createdAt: 'desc' },
+      select: { event: true, occurredAt: true },
+    });
+    const staleEvent = latestEvent?.event === 'CHARGE_SUCCEEDED'
+      || (latestEvent?.occurredAt && input.occurredAt && input.occurredAt < latestEvent.occurredAt);
     try {
       await transaction.paymentEvent.create({
         data: {
@@ -78,15 +91,9 @@ async function processPaymentWebhookOnce(
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return { status: 'duplicate' };
       throw error;
     }
-
-    const paymentLock = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT id FROM payments WHERE provider_charge_id = ${input.chargeId} FOR UPDATE
-    `);
-    const payment = paymentLock.length > 0
-      ? await transaction.payment.findUnique({ where: { id: paymentLock[0].id } })
-      : null;
     if (!payment) return { status: 'recorded_unknown' };
     if (payment.amountMinor !== input.amountMinor || (input.currency && payment.currency !== input.currency) || payment.bookingId !== input.reference) return { status: 'payment_mismatch' };
+    if (staleEvent) return { status: 'ignored_stale' };
     await transaction.$queryRaw(Prisma.sql`SELECT id FROM bookings WHERE id = ${payment.bookingId}::uuid FOR UPDATE`);
     const booking = await transaction.booking.findUnique({ where: { id: payment.bookingId }, select: { id: true, status: true, holdExpiresAt: true, amountMinor: true, currency: true } });
     if (!booking) return { status: 'recorded_unknown' };

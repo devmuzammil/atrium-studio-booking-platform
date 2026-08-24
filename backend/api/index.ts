@@ -35,6 +35,8 @@ type NodeRequest = Parameters<typeof app>[0];
 type NodeResponse = Parameters<typeof app>[1];
 
 export const config = {
+  runtime: 'nodejs',
+  maxDuration: 30,
   api: { bodyParser: false },
 };
 
@@ -70,29 +72,29 @@ app.use(async (_req, _res, next) => {
   next();
 });
 
-// Default handler for all /api/* requests, plus the /health and /paygate/*
-// rewrites.
+// Default handler for all /api/* requests, plus /health and /paygate/*
+// rewrites, and the /api/cron scheduled sweep.
 export default function handler(req: NodeRequest, res: NodeResponse): void {
-  req.url = normalizePath(req.url ?? '');
-  app(req, res);
-}
+  const url = req.url ?? '';
 
-// Vercel cron target. Cron scheduler is once per day on the Hobby plan; the
-// lazy middleware above handles real-time correctness, this is just a safety
-// net. Optional CRON_SECRET authorization matches Vercel's recommendation.
-export async function cron(
-  req: NodeRequest,
-  res: NodeResponse,
-): Promise<void> {
-  const secret = process.env.CRON_SECRET;
-  const auth = req.headers.authorization;
-  if (secret && auth !== `Bearer ${secret}`) {
-    res.statusCode = 401;
-    res.end('Unauthorized');
+  // Vercel Cron (daily, Hobby max) hits /api/cron, which this fallback
+  // function serves. Run the same housekeeping sweep as a safety net.
+  if (url === '/api/cron' || url.startsWith('/api/cron?')) {
+    const secret = process.env.CRON_SECRET;
+    const auth = req.headers.authorization;
+    if (secret && auth !== `Bearer ${secret}`) {
+      res.statusCode = 401;
+      res.end('Unauthorized');
+      return;
+    }
+    void runHousekeeping().then(() => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: true }));
+    });
     return;
   }
-  await runHousekeeping();
-  res.statusCode = 200;
-  res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ ok: true }));
+
+  req.url = normalizePath(url);
+  app(req, res);
 }

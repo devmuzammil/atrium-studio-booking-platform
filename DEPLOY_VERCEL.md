@@ -17,6 +17,17 @@ and remains the local assessment environment with 3 API replicas + nginx LB.
   batch services the worker used) plus a daily `/api/cron` (Hobby max).
 - Raw body is preserved (`api.bodyParser: false`) so the paygate webhook HMAC
   check still works.
+- Runtime/maxDuration live in `export const config` inside `api/index.ts`
+  (`runtime: 'nodejs'`, `maxDuration: 30`), **not** in `vercel.json`'s
+  `functions` block. The `functions` block form (`nodejs22.x`) was rejected by
+  the function-config validator; the in-file `config` form is the supported
+  approach and Vercel resolves `nodejs` to the project's Node version
+  (currently 22.x, governed by `engines.node` in `package.json`).
+- `buildCommand` is omitted from `vercel.json`; Vercel auto-detects
+  `npm run build` from `package.json`.
+- `postinstall: "prisma generate"` in `package.json` ensures the Prisma client
+  is generated after dependency installation on Vercel's build machine.
+- `backend/public/index.html` provides a simple landing page for the API root.
 
 ## 1. Backend project (atrium-api)
 
@@ -68,3 +79,12 @@ Dashboard → New Project → Import repo → **Root Directory: `frontend`**.
 - `GET https://<your-api>.vercel.app/health` → `{"status":"ok",...}`
 - Open `https://<your-web>.vercel.app/` and log in with a seeded account.
 - Cron runs `/api/cron` daily at 04:00 UTC (Hobby limit).
+
+### Local build verification
+
+Run `npx vercel build --project atrium-api --yes` from `backend/` to simulate
+the Vercel build. The serverless function (`api/index.ts`) compiles to
+`.vercel/output/functions/api/index.func/` with the correct runtime and
+maxDuration. If the static-build step reports `EPERM` errors on Windows, those
+are local filesystem permission issues and do not occur on Vercel's Linux
+build servers.

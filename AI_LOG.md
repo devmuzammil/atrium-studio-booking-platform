@@ -160,3 +160,25 @@
 - Correction recorded: the seed profile constants were correct, but the five required demo accounts were originally added on top of the configured user count and booking dates spanned multiple years. The seed now reserves five users for those accounts and cycles bookings across exactly 24 calendar months.
 - Correction recorded: `prisma:seed` originally failed to forward `--profile`; the npm script now passes arguments through to the seed program.
 - Verification limitation: integration fixtures and demo seeding could not run because the configured Neon host was unreachable. No database counts or integration assertions are claimed as passed.
+
+## Vercel deployment preparation
+
+- Delegated to Copilot: prepare the Express backend for zero-cost Vercel Hobby
+  deployment as a serverless function, preserving all assessment invariants.
+- Discovery: `vercel.json` with `functions: { "api/index.ts": { runtime: "nodejs22.x" } }`
+  was rejected at build time as `unsupported "runtime" value in config: "nodejs24.x"`.
+  The `functions`-block runtime must be `"nodejs"` in the function's own
+  `export const config`, not a version-pinned string.
+- Correction: moved `runtime` and `maxDuration` into `export const config` in
+  `backend/api/index.ts` (`runtime: 'nodejs'`, `maxDuration: 30`); removed the
+  `functions` and `buildCommand` keys from `backend/vercel.json` (Vercel
+  auto-detects the build script from `package.json`). Added `postinstall:
+  "prisma generate"` so the Prisma client is generated after `npm install` on
+  Vercel's build machine. Added `backend/public/index.html` as a minimal landing
+  page for the API root.
+- Verification: `npx vercel build --project atrium-api --yes` compiles the
+  serverless function successfully — `.vercel/output/functions/api/index.func/.vc-config.json`
+  confirms `"runtime": "nodejs22.x"` and `"maxDuration": 30`. The only failure
+  is `npm install` hitting `EPERM` on Windows file locks (local-only; does not
+  occur on Vercel Linux). `tsc -p tsconfig.build.json` passes with exit code 0.
+- Docker Compose (`docker compose up`) and the Nginx load balancer are untouched.

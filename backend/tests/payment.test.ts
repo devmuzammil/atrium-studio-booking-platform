@@ -8,6 +8,7 @@ import { createApp } from '../src/app';
 import { prisma } from '../src/config/prisma';
 import { AuthDependencies } from '../src/middleware/auth';
 import { PaymentProvider } from '../src/services/paymentService';
+import { signPaygateBody } from '../src/services/paygateService';
 
 jest.setTimeout(30000);
 process.env.PAYGATE_SECRET = 'payment-test-secret';
@@ -65,6 +66,16 @@ function webhook(body: Record<string, unknown>, deliveryId = randomUUID()) {
     .send(raw);
 }
 
+function paygateRequest(path: string, body: Record<string, unknown>, idempotencyKey: string) {
+  const raw = JSON.stringify(body);
+  return request(app)
+    .post(path)
+    .set('content-type', 'application/json')
+    .set('x-paygate-signature', signPaygateBody(raw))
+    .set('Idempotency-Key', idempotencyKey)
+    .send(raw);
+}
+
 beforeAll(async () => {
   await prisma.user.createMany({ data: [
     { id: userId, email: `${userId}@payment.test`, passwordHash: 'test' },
@@ -90,13 +101,27 @@ afterAll(async () => {
 describe('Paygate and payment integrity', () => {
   it('creates an idempotent Paygate charge and returns processing', async () => {
     const body = { amount_minor: 45000, currency: 'PKR', reference: randomUUID() };
-    const first = await request(app).post('/paygate/charges').set('Idempotency-Key', 'paygate-key').send(body);
-    const second = await request(app).post('/paygate/charges').set('Idempotency-Key', 'paygate-key').send(body);
+    const first = await paygateRequest('/paygate/charges', body, 'paygate-key');
+    const second = await paygateRequest('/paygate/charges', body, 'paygate-key');
 
     expect(first.status).toBe(202);
     expect(first.body.status).toBe('processing');
     expect(second.body.charge_id).toBe(first.body.charge_id);
     expect(await prisma.paygateCharge.count({ where: { idempotencyKey: 'paygate-key' } })).toBe(1);
+  });
+
+  it('rejects unauthenticated direct charge and refund requests', async () => {
+    const charge = await request(app)
+      .post('/paygate/charges')
+      .set('Idempotency-Key', 'unauthorized-charge')
+      .send({ amount_minor: 100, currency: 'PKR', reference: randomUUID() });
+    const refund = await request(app)
+      .post('/paygate/refunds')
+      .set('Idempotency-Key', 'unauthorized-refund')
+      .send({ charge_id: 'ch_unknown', amount_minor: 100 });
+
+    expect(charge.status).toBe(401);
+    expect(refund.status).toBe(401);
   });
 
   it('starts payment from a held booking with the server amount', async () => {

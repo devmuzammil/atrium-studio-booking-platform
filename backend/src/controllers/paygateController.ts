@@ -1,6 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma';
-import { createCharge, createRefund } from '../services/paygateService';
+import { createCharge, createRefund, verifyPaygateSignature } from '../services/paygateService';
+
+export function requireInternalPaygateSignature(request: Request, _response: Response, next: NextFunction): void {
+  const rawBody = (request as Request & { rawBody?: Buffer }).rawBody;
+  if (!rawBody || !verifyPaygateSignature(rawBody, request.header('x-paygate-signature'))) {
+    next(Object.assign(new Error('Invalid internal Paygate signature'), { statusCode: 401 }));
+    return;
+  }
+  next();
+}
 
 function requiredHeader(request: Request, name: string): string {
   const value = request.header(name);

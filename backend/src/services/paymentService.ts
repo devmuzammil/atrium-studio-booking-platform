@@ -1,6 +1,7 @@
 import { BookingStatus, PaymentStatus, Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { transitionBookingInTransaction } from './bookingStateMachine';
+import { signPaygateBody } from './paygateService';
 
 export interface PaymentProvider {
   charge(input: { idempotencyKey: string; amountMinor: number; currency: string; reference: string }): Promise<{ chargeId: string }>;
@@ -150,17 +151,19 @@ export function localPaymentProvider(database: PrismaClient): PaymentProvider {
   return {
     charge: async (input) => {
       const baseUrl = process.env.PAYGATE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
-      const response = await fetch(`${baseUrl}/paygate/charges`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey }, body: JSON.stringify({ amount_minor: input.amountMinor, currency: input.currency, reference: input.reference }) });
+      const body = JSON.stringify({ amount_minor: input.amountMinor, currency: input.currency, reference: input.reference });
+      const response = await fetch(`${baseUrl}/paygate/charges`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, 'x-paygate-signature': signPaygateBody(body) }, body });
       if (!response.ok) throw new Error('Paygate charge request failed');
-      const body = await response.json() as { charge_id: string };
-      return { chargeId: body.charge_id };
+      const responseBody = await response.json() as { charge_id: string };
+      return { chargeId: responseBody.charge_id };
     },
     refund: async (input) => {
       const baseUrl = process.env.PAYGATE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
-      const response = await fetch(`${baseUrl}/paygate/refunds`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey }, body: JSON.stringify({ charge_id: input.chargeId, amount_minor: input.amountMinor }) });
+      const body = JSON.stringify({ charge_id: input.chargeId, amount_minor: input.amountMinor });
+      const response = await fetch(`${baseUrl}/paygate/refunds`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, 'x-paygate-signature': signPaygateBody(body) }, body });
       if (!response.ok) throw new Error('Paygate refund request failed');
-      const body = await response.json() as { refund_id: string };
-      return { refundId: body.refund_id };
+      const responseBody = await response.json() as { refund_id: string };
+      return { refundId: responseBody.refund_id };
     },
   };
 }

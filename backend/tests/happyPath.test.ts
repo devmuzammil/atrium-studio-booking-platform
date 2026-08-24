@@ -29,11 +29,12 @@ const provider: PaymentProvider = {
 };
 const app = createApp({ auth, paymentProvider: provider });
 const token = jwt.sign({ sub: userId }, jwtSecret);
-const start = new Date(Date.now() + 2 * 60 * 60 * 1000);
-start.setUTCMinutes(Math.ceil(start.getUTCMinutes() / 30) * 30, 0, 0);
+const start = new Date();
+start.setUTCDate(start.getUTCDate() + 1);
+start.setUTCHours(10, 0, 0, 0);
 const end = new Date(start.getTime() + 60 * 60000);
-const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(start);
-const allDaySchedule = { [weekday]: [{ open: '00:00', close: '23:59' }] };
+const allDaySchedule = Object.fromEntries(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  .map((day) => [day, [{ open: '00:00', close: '23:59' }]]));
 
 beforeAll(async () => {
   await prisma.user.create({ data: { id: userId, email: `${userId}@happy.test`, passwordHash: 'test' } });

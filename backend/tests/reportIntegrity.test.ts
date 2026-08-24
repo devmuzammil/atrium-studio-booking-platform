@@ -13,6 +13,7 @@ const userId = randomUUID();
 const roomId = randomUUID();
 const otherRoomId = randomUUID();
 const chargeIds: string[] = [];
+const bookingIds: string[] = [];
 const base = new Date('2026-01-01T00:00:00.000Z');
 const slot = (hours: number, duration: number): { start: Date; end: Date } => ({
   start: new Date(base.getTime() + hours * 60 * 60000),
@@ -21,6 +22,7 @@ const slot = (hours: number, duration: number): { start: Date; end: Date } => ({
 
 async function createBooking(status: BookingStatus, amountMinor: number, interval: { start: Date; end: Date }): Promise<string> {
   const id = randomUUID();
+  bookingIds.push(id);
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO bookings (id, user_id, room_id, slot, protected_slot, status, amount_minor, currency,
       pricing_snapshot, policy_snapshot, created_at, updated_at)
@@ -56,20 +58,27 @@ async function createPayment(bookingId: string, amountMinor: number, status: Pay
 }
 
 async function cleanFixtures(): Promise<void> {
-  await prisma.$executeRaw(Prisma.sql`
-    TRUNCATE TABLE
-      audit_events,
-      paygate_refunds,
-      paygate_charges,
-      payment_events,
-      payments,
-      refunds,
-      inventory_reservations,
-      booking_line_items,
-      bookings
-    RESTART IDENTITY CASCADE;
-  `);
+  if (bookingIds.length > 0) {
+    if (process.env.NODE_ENV !== 'test') throw new Error('Fixture cleanup is test-only');
+    await prisma.$transaction(async (transaction) => {
+      await transaction.refund.deleteMany({ where: { bookingId: { in: bookingIds } } });
+      await transaction.paymentEvent.deleteMany({ where: { providerChargeId: { in: chargeIds } } });
+      await transaction.paygateRefund.deleteMany({ where: { chargeId: { in: chargeIds } } });
+      await transaction.paygateCharge.deleteMany({ where: { chargeId: { in: chargeIds } } });
+      await transaction.payment.deleteMany({ where: { bookingId: { in: bookingIds } } });
+      await transaction.inventoryReservation.deleteMany({ where: { bookingId: { in: bookingIds } } });
+      await transaction.bookingLineItem.deleteMany({ where: { bookingId: { in: bookingIds } } });
+      await transaction.$executeRaw`ALTER TABLE audit_events DISABLE TRIGGER audit_events_append_only`;
+      try {
+        await transaction.auditEvent.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await transaction.booking.deleteMany({ where: { id: { in: bookingIds } } });
+      } finally {
+        await transaction.$executeRaw`ALTER TABLE audit_events ENABLE TRIGGER audit_events_append_only`;
+      }
+    });
+  }
   chargeIds.length = 0;
+  bookingIds.length = 0;
 }
 
 beforeAll(async () => {
@@ -134,6 +143,19 @@ describe('venue report integration', () => {
     const rows = await getVenueReport(prisma, venueId, base, new Date(base.getTime() + 6 * 60 * 60000));
     expect(rows[0].revenueMinor).toBe(0);
     expect(rows[0].bookedMinutes).toBe(0);
+    bookingIds.push(otherId);
+  });
+
+  it('keeps audit events append-only without persisting test rows', async () => {
+    await expect(prisma.$transaction(async (transaction) => {
+      const event = await transaction.auditEvent.create({ data: { type: 'ADMIN_ACTION', reason: 'trigger test' } });
+      await transaction.auditEvent.update({ where: { id: event.id }, data: { reason: 'must fail' } });
+    })).rejects.toThrow('audit_events are append-only');
+
+    await expect(prisma.$transaction(async (transaction) => {
+      const event = await transaction.auditEvent.create({ data: { type: 'ADMIN_ACTION', reason: 'trigger test' } });
+      await transaction.auditEvent.delete({ where: { id: event.id } });
+    })).rejects.toThrow('audit_events are append-only');
   });
 });
 

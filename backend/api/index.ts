@@ -81,7 +81,9 @@ app.use(async (_req, _res, next) => {
 // Default handler for all /api/* requests, plus /health and /paygate/*
 // rewrites, and the /api/cron scheduled sweep.
 export default function handler(req: NodeRequest, res: NodeResponse): void {
-  const url = req.url ?? '';
+  const requestUrl = req.url ?? '';
+  const parsedUrl = new URL(requestUrl, 'https://vercel.local');
+  const url = parsedUrl.searchParams.get('route') ?? requestUrl;
 
   // Vercel Cron (daily, Hobby max) hits /api/cron, which this fallback
   // function serves. Run the same housekeeping sweep as a safety net.

@@ -32,8 +32,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const instanceId = process.env.INSTANCE_ID || 'local';
 
   app.use((request, response, next) => {
-    const origin = process.env.CORS_ORIGIN || '*';
-    response.setHeader('Access-Control-Allow-Origin', origin);
+    response.setHeader('Access-Control-Allow-Origin', '*');
     response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-Request-ID');
     response.setHeader('Access-Control-Expose-Headers', 'x-request-id, x-instance-id');
     response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');

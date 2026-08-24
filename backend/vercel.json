@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    { "source": "/api/:group/:id/:path*", "destination": "/api/index?route=/api/:group/:id/:path*" },
     { "source": "/health", "destination": "/api/health" },
     { "source": "/paygate/:path*", "destination": "/api/paygate/:path*" }
   ],

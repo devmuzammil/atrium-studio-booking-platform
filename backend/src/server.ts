@@ -3,6 +3,8 @@ import { getConfig } from './config/env';
 import { prisma } from './config/prisma';
 import { expireDueHolds } from './services/holdExpiryService';
 import { completeDueBookings } from './services/bookingCompletionService';
+import { localPaymentProvider } from './services/paymentService';
+import { retryPendingRefunds } from './services/cancellationService';
 
 function startBackgroundLoops(): NodeJS.Timeout | null {
   if (process.env.RUN_WORKER === 'false') {
@@ -20,6 +22,9 @@ function startBackgroundLoops(): NodeJS.Timeout | null {
     });
     void completeDueBookings(prisma).catch((error: unknown) => {
       console.error('Booking completion poll failed:', error);
+    });
+    void retryPendingRefunds(prisma, localPaymentProvider(prisma)).catch((error: unknown) => {
+      console.error('Refund retry poll failed:', error);
     });
   }, intervalMs);
 }

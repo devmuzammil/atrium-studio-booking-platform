@@ -12,6 +12,7 @@ export interface PaygateRefundInput {
   idempotencyKey: string;
   chargeId: string;
   amountMinor: number;
+  currency?: string;
 }
 
 function chaosEnabled(): boolean {
@@ -105,18 +106,31 @@ export async function createRefund(database: PrismaClient, input: PaygateRefundI
   const existing = await database.paygateRefund.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
   if (existing) return existing;
 
-  const charge = await database.paygateCharge.findUnique({ where: { chargeId: input.chargeId } });
-  if (!charge) throw new Error('Paygate charge not found');
+  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) throw Object.assign(new Error('Refund amount must be positive'), { statusCode: 400 });
 
   try {
-    return await database.paygateRefund.create({
-      data: {
-        refundId: `re_${randomUUID().replace(/-/g, '')}`,
-        idempotencyKey: input.idempotencyKey,
-        chargeId: input.chargeId,
-        amountMinor: input.amountMinor,
-        status: PaygateRefundStatus.SUCCEEDED,
-      },
+    return await database.$transaction(async (transaction) => {
+      await transaction.$queryRaw(Prisma.sql`SELECT charge_id FROM paygate_charges WHERE charge_id = ${input.chargeId} FOR UPDATE`);
+      const charge = await transaction.paygateCharge.findUnique({ where: { chargeId: input.chargeId } });
+      if (!charge) throw Object.assign(new Error('Paygate charge not found'), { statusCode: 400 });
+      if (charge.status !== PaygateChargeStatus.SUCCEEDED) throw Object.assign(new Error('Paygate charge is not captured'), { statusCode: 400 });
+      if (input.currency && input.currency !== charge.currency) throw Object.assign(new Error('Refund currency does not match charge'), { statusCode: 400 });
+      const refunded = await transaction.paygateRefund.aggregate({
+        where: { chargeId: input.chargeId, status: PaygateRefundStatus.SUCCEEDED },
+        _sum: { amountMinor: true },
+      });
+      if ((refunded._sum.amountMinor ?? 0) + input.amountMinor > charge.amountMinor) {
+        throw Object.assign(new Error('Refund exceeds captured amount'), { statusCode: 400 });
+      }
+      return transaction.paygateRefund.create({
+        data: {
+          refundId: `re_${randomUUID().replace(/-/g, '')}`,
+          idempotencyKey: input.idempotencyKey,
+          chargeId: input.chargeId,
+          amountMinor: input.amountMinor,
+          status: PaygateRefundStatus.SUCCEEDED,
+        },
+      });
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

@@ -1,7 +1,8 @@
 # Load Test Plan
 
-The benchmark has not been run in this workspace because the full profile and
-three-replica deployment are not configured. No latency numbers are claimed.
+The full-profile latency benchmark has not been run in this workspace. No
+latency numbers are claimed. The three-replica Compose deployment is
+configured and the mandatory concurrency proof is documented below.
 
 ## Required Profiles
 

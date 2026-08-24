@@ -87,6 +87,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await prisma.$executeRaw(Prisma.sql`TRUNCATE TABLE audit_events, refunds, payment_events, payments, inventory_reservations, booking_line_items, bookings RESTART IDENTITY CASCADE;`);
+  await prisma.paygateRefund.deleteMany({ where: { charge: { reference: { not: '' } } } });
   await prisma.paygateCharge.deleteMany({ where: { reference: { not: '' } } });
   jest.clearAllMocks();
 });
@@ -122,6 +123,27 @@ describe('Paygate and payment integrity', () => {
 
     expect(charge.status).toBe(401);
     expect(refund.status).toBe(401);
+  });
+
+  it('enforces captured amount and cumulative refund limits', async () => {
+    const charge = await paygateRequest('/paygate/charges', { amount_minor: 100, currency: 'PKR', reference: randomUUID() }, 'refund-charge-key');
+    const chargeId = charge.body.charge_id as string;
+    const partial = await paygateRequest('/paygate/refunds', { charge_id: chargeId, amount_minor: 60, currency: 'PKR' }, 'refund-partial-key');
+    const duplicate = await paygateRequest('/paygate/refunds', { charge_id: chargeId, amount_minor: 60, currency: 'PKR' }, 'refund-partial-key');
+    const over = await paygateRequest('/paygate/refunds', { charge_id: chargeId, amount_minor: 41, currency: 'PKR' }, 'refund-over-key');
+
+    expect(partial.status).toBe(202);
+    expect(duplicate.status).toBe(202);
+    expect(duplicate.body.refund_id).toBe(partial.body.refund_id);
+    expect(over.status).toBe(400);
+  });
+
+  it('rejects refunds for an uncaptured charge', async () => {
+    await prisma.paygateCharge.create({ data: { chargeId: 'ch_processing_test', idempotencyKey: 'processing-charge-key', reference: randomUUID(), amountMinor: 100, currency: 'PKR', status: 'PROCESSING' } });
+
+    const response = await paygateRequest('/paygate/refunds', { charge_id: 'ch_processing_test', amount_minor: 10, currency: 'PKR' }, 'processing-refund-key');
+
+    expect(response.status).toBe(400);
   });
 
   it('starts payment from a held booking with the server amount', async () => {
@@ -174,6 +196,21 @@ describe('Paygate and payment integrity', () => {
     expect(invalid.status).toBe(401);
     expect(incorrect.status).toBe(200);
     expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.PENDING_PAYMENT);
+  });
+
+  it('refunds a capture that arrives after a failed payment event', async () => {
+    const bookingId = await createHeldBooking();
+    await request(app).post(`/api/bookings/${bookingId}/payment`).set('Authorization', `Bearer ${token}`).set('Idempotency-Key', 'payment-key');
+    const failed = { charge_id: 'ch_payment_test', reference: bookingId, event: 'charge.failed', amount_minor: 12500, currency: 'PKR' };
+    const succeeded = { ...failed, event: 'charge.succeeded' };
+
+    expect((await webhook(failed)).status).toBe(200);
+    expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.FAILED);
+    expect((await webhook(succeeded, randomUUID())).status).toBe(200);
+
+    expect((await prisma.booking.findUnique({ where: { id: bookingId } }))?.status).toBe(BookingStatus.REFUNDED);
+    expect(await prisma.refund.count({ where: { bookingId } })).toBe(1);
+    expect(provider.refund).toHaveBeenCalledTimes(1);
   });
 
   it('records an unknown charge webhook for recovery', async () => {

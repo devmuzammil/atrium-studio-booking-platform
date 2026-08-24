@@ -49,7 +49,7 @@ describe('booking state machine', () => {
   it('defines terminal states with no outgoing transitions', () => {
     expect(validBookingTransitions[BookingStatus.COMPLETED]).toEqual([]);
     expect(validBookingTransitions[BookingStatus.REFUNDED]).toEqual([]);
-    expect(validBookingTransitions[BookingStatus.FAILED]).toEqual([]);
+    expect(validBookingTransitions[BookingStatus.FAILED]).toEqual([BookingStatus.REFUNDED]);
   });
 
   it('provides a conflict error for an illegal transition', () => {

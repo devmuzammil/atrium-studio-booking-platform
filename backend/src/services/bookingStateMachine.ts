@@ -7,7 +7,7 @@ export const validBookingTransitions: Readonly<Record<BookingStatus, readonly Bo
   [BookingStatus.CONFIRMED]: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
   [BookingStatus.COMPLETED]: [],
   [BookingStatus.EXPIRED]: [BookingStatus.REFUNDED],
-  [BookingStatus.FAILED]: [],
+  [BookingStatus.FAILED]: [BookingStatus.REFUNDED],
   [BookingStatus.CANCELLED]: [BookingStatus.REFUNDED],
   [BookingStatus.REFUNDED]: [],
 };

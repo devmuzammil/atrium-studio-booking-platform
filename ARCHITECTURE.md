@@ -13,7 +13,7 @@ has priority over Tier 2 and Tier 3 feature breadth.
 | Database | Neon PostgreSQL | Source of truth, transactions, exclusion constraints, reporting |
 | ORM | Prisma ORM and Prisma Client | Typed models, migrations, transactions, and ordinary CRUD |
 | Database-specific SQL | Prisma migrations and tagged `$queryRaw` queries | Range constraints, GiST indexes, interval sweeps, and row locks |
-| Jobs | PostgreSQL-backed job/outbox polling worker | Hold expiry, webhook processing, reconciliation, refunds |
+| Jobs | PostgreSQL-backed polling loops | Hold expiry, booking completion, and pending refund retries |
 | Deployment | Three stateless Express replicas behind a load balancer | Horizontal request handling |
 
 I chose Express and React because they are familiar, widely deployable, and
@@ -236,7 +236,7 @@ the remaining requests receive `409`. The same transaction strategy permits no
 more than three simultaneous units when the equipment capacity is three. The
 proof must run through the load balancer, not directly against one process.
 
-### Verified runtime evidence (2026-08-22)
+### Verified runtime evidence (2026-08-25)
 
 The Compose configuration validated successfully. The shared PostgreSQL
 container, three API replicas, and Nginx were all running and healthy. Thirty
@@ -245,20 +245,24 @@ replicas: `api-1` 10, `api-2` 10, and `api-3` 10. Each response reported
 PostgreSQL and Paygate dependencies as healthy. The `btree_gist` extension and
 `audit_events_append_only` trigger were present in PostgreSQL.
 
-The mandatory proof was executed through Nginx on the local Compose stack after
-configuring a dedicated local fixture. The room case produced exactly 1
-success, 199 HTTP 409 conflicts, and 0 unexpected responses. The equipment case
-produced 3 successes, 197 HTTP 409 conflicts, and 0 unexpected responses. No
-duplicate active room bookings or over-allocation occurred. The tenant-isolation
-negative test passed 10/10, including direct access to a valid resource UUID in
-another venue. The payment integrity suite passed 8/8, and a clean
-reconciliation query returned zero discrepancies with zero captured charges.
+The mandatory proof was executed through Nginx on the local Compose stack with
+three healthy API replicas and a clean demo seed. The exact test output was:
 
-The Paygate chaos burst was also executed with `PAYGATE_CHAOS=on`, but it is
-not a pass: 100 charge attempts produced 47 HTTP 202 responses, 1 HTTP 500
-after retry, and 52 HTTP 502 responses caused by Nginx reporting no live
-upstreams during the burst. Load-test measurements and `EXPLAIN ANALYZE`
-captures remain unverified.
+```text
+Room proof counts { successes: 1, conflicts: 199, unexpected: 0, samples: [] }
+Equipment proof counts { successes: 3, conflicts: 197, unexpected: 0, samples: '[]' }
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+```
+
+No duplicate active room bookings or equipment over-allocation occurred. The
+tenant-isolation negative test passed, including direct access to valid resource
+UUIDs in another venue. The payment integrity suite passed 10/10.
+
+The Paygate chaos burst was executed with `PAYGATE_CHAOS=on`, but remains
+unverified because an earlier 100-attempt run produced Nginx `502` responses
+and one retried `500`. Load-test measurements and `EXPLAIN ANALYZE` captures
+remain unverified.
 
 ## 5. Validation and Booking Rules
 
@@ -324,16 +328,15 @@ attempt results, not as a reliable request/response dependency.
 3. The webhook verifies the HMAC over the raw request body before parsing. An
    invalid signature returns `401`, is logged, and is not processed.
 4. Valid events are stored in `payment_events` using the provider delivery ID
-   as a deduplication key, then placed on the database-backed work queue. An
-   unknown charge is recorded and acknowledged with `202`; it is not silently
-   dropped or turned into a `500`.
-5. A worker locks the payment and booking, applies the event only if it is the
-   current valid transition, and commits the booking transition plus audit event
-   atomically. Duplicate deliveries and stale out-of-order events have no
-   second business effect.
+  as a deduplication key. An unknown charge is recorded and acknowledged; it is
+  not silently dropped or turned into a `500`.
+5. The webhook request currently locks the payment and booking, applies the
+  event, and commits the booking transition plus audit event atomically.
+  Duplicate deliveries and stale out-of-order events have no second business
+  effect.
 6. A success received after `HELD` has expired cannot confirm the booking. The
-   worker records the captured charge, transitions `EXPIRED -> REFUNDED`, and
-   submits one refund with a deterministic refund idempotency key.
+  handler records the captured charge, creates a recoverable pending refund,
+  and submits one refund with a deterministic refund idempotency key.
 
 The unique constraints on payment booking/attempt, provider charge ID, event
 delivery ID, and refund idempotency key provide database enforcement. The
@@ -410,12 +413,11 @@ include request ID, actor ID, venue ID, booking ID, provider charge ID,
 transition, latency, and database error code. Sensitive payment payloads and
 credentials are redacted.
 
-`/api/health` checks PostgreSQL connectivity, migration version, and worker
-queue freshness. It returns unhealthy when the database is unreachable or
-queued payment work is stalled. Webhook acknowledgement is quick because
-signature verification and durable enqueue happen inline; payment transitions,
-refunds, and reconciliation run asynchronously with retries and a dead-letter
-state.
+`/health` checks PostgreSQL connectivity and Paygate persistence. Hold expiry,
+booking completion, and pending-refund retry loops run in each API process using
+database locking. Webhook signature verification and payment transitions are
+currently performed inline; `payment_events` and pending refunds remain
+durable and queryable for retry/reconciliation.
 
 ## 11. Assumptions
 
@@ -440,8 +442,8 @@ state.
 - Health is exposed at `GET /health` (not `/api/health`).
 - Webhook handling verifies the HMAC, writes `payment_events`, then applies the
   booking/payment transition before returning. That is still one request; the
-  durable event row is what makes retries safe. A fully async worker was not
-  split out.
+  durable event row is what makes duplicate delivery safe. A fully asynchronous
+  webhook queue is not implemented.
 
 ## 12. What Breaks at 100x
 

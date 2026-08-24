@@ -56,10 +56,19 @@ async function createPayment(bookingId: string, amountMinor: number, status: Pay
 }
 
 async function cleanFixtures(): Promise<void> {
-  await prisma.refund.deleteMany({ where: { booking: { userId } } });
-  await prisma.payment.deleteMany({ where: { booking: { userId } } });
-  await prisma.booking.deleteMany({ where: { userId } });
-  if (chargeIds.length > 0) await prisma.paygateCharge.deleteMany({ where: { chargeId: { in: chargeIds } } });
+  await prisma.$executeRaw(Prisma.sql`
+    TRUNCATE TABLE
+      audit_events,
+      paygate_refunds,
+      paygate_charges,
+      payment_events,
+      payments,
+      refunds,
+      inventory_reservations,
+      booking_line_items,
+      bookings
+    RESTART IDENTITY CASCADE;
+  `);
   chargeIds.length = 0;
 }
 

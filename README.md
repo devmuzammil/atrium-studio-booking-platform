@@ -149,20 +149,21 @@ $env:CONCURRENCY_EQUIPMENT_ROOM_IDS="<room-a>,<room-b>,<room-c>"
 npm run test:concurrency
 ```
 
+With the Compose stack and demo seed running, the proof discovers the demo
+credentials, room, venue, and exactly-three-unit equipment fixture itself.
+
 Expected results are one room `201`, 199 room `409`s, at most three equipment
 successes, and no unexpected `500`s.
 
-## Render
+## Deployment
 
-See [RENDER.md](RENDER.md). The API is packaged for Hobby/free deployment in
-`render.yaml`. It is not deployed from this workspace, so no live URL is
-claimed here.
+- API: https://atrium-api.vercel.app
+- Frontend: https://atrium-one.vercel.app
+- Deployment uses the Vercel projects configured in `backend/vercel.json` and
+  `frontend/vercel.json`.
 
-## Known issues and what I did not finish
+## Known Issues and What I Did Not Finish
 
-- Public frontend and API deployment URLs are not present in this workspace.
-- Fresh three-replica concurrency proof output is not pasted into the
-  architecture document.
 - A previous Paygate chaos burst produced Nginx `502` responses and requires a
   clean rerun before it can be called verified.
 - `LOAD_TEST.md` does not contain reproducible p50/p95/p99 or `EXPLAIN ANALYZE`
@@ -173,5 +174,11 @@ claimed here.
 - Tier 3 features such as heatmap, natural-language search, recurring
   bookings, waitlists, and notifications were intentionally not started.
 
+The local Compose stack and the deployed Vercel API/frontend were verified on
+2026-08-25. Production CORS currently permits browser requests from the
+configured deployment and the API health, login, venue authorization, and
+Paygate route protection checks passed.
+
 If a hold expires while payment is in flight, the booking cannot become
-`CONFIRMED`; a captured charge is refunded through `EXPIRED` then `REFUNDED`.
+`CONFIRMED`; a captured charge creates a recoverable pending refund and reaches
+`REFUNDED` only after the provider refund succeeds.

@@ -99,7 +99,16 @@ async function main(): Promise<void> {
 
   for (let venueIndex = 0; venueIndex < venueIds.length; venueIndex += 1) {
     const equipmentAtVenue = distribute(profile.equipment, profile.venues, venueIndex);
-    await prisma.equipmentType.createMany({ data: Array.from({ length: Math.max(1, Math.ceil(equipmentAtVenue / 10)) }, (_, equipmentIndex) => ({ id: randomUUID(), venueId: venueIds[venueIndex], name: `Equipment ${venueIndex + 1}-${equipmentIndex + 1}`, hourlyRateMinor: 1000 + equipmentIndex * 100, currency: 'PKR', totalUnits: distribute(equipmentAtVenue, Math.max(1, Math.ceil(equipmentAtVenue / 10)), equipmentIndex), overbookingPercent: 0 })) });
+    const equipmentTypeCount = Math.max(2, Math.ceil(equipmentAtVenue / 10));
+    await prisma.equipmentType.createMany({ data: Array.from({ length: equipmentTypeCount }, (_, equipmentIndex) => ({
+      id: randomUUID(),
+      venueId: venueIds[venueIndex],
+      name: `Equipment ${venueIndex + 1}-${equipmentIndex + 1}`,
+      hourlyRateMinor: 1000 + equipmentIndex * 100,
+      currency: 'PKR',
+      totalUnits: equipmentIndex === 0 ? 3 : distribute(equipmentAtVenue - 3, equipmentTypeCount - 1, equipmentIndex - 1),
+      overbookingPercent: 0,
+    })) });
   }
 
   const demoAccountCount = 5;

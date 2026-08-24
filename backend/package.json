@@ -9,7 +9,7 @@
     "postinstall": "prisma generate",
     "start": "node dist/server.js",
     "start:prod": "prisma migrate deploy && node dist/server.js",
-    "test": "jest --runInBand",
+    "test": "jest --runInBand --testPathIgnorePatterns=tests/concurrencyProof.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "prisma:migrate": "prisma migrate dev",

@@ -134,7 +134,20 @@
   with an unused 10-minute timestamp; `POST /checkout` now extends the hold.
   Policy had no write API; versioned PUT was added. A report UUID negative test
   and an end-to-end hold-pay-confirm test were added.
-- Not claimed: live deploy, k6 numbers, or a fresh 200-request proof run.
+- Not claimed: k6 numbers or full-profile benchmark captures.
+
+## Final verification
+
+- Backend tests passed: 13 suites and 128 tests.
+- Backend and frontend production builds passed.
+- The mandatory proof passed through the local Nginx load balancer on
+  2026-08-25: one room success and 199 conflicts; three equipment successes
+  and 197 conflicts; zero unexpected responses.
+- Vercel backend and frontend deployments were verified at the URLs in
+  `README.md`. Production health, login, CORS, venue authorization, and
+  unauthenticated Paygate refund protection were checked.
+- Paygate chaos, full-profile latency numbers, and `EXPLAIN ANALYZE` captures
+  remain unverified.
 
 
 ## Render backend packaging

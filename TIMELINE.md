@@ -10,8 +10,10 @@
   daily cron; Render packaging (in-process paygate, migrate-on-start).
 
 ## Cut
-- Live hosting (Render/Vercel) — deployment prepared, no live deploy in this workspace.
-- Pasting concurrency-proof stdout after a Nginx run on this machine.
+- Live hosting (Vercel) — backend and frontend deployed and verified on
+  2026-08-25 at the URLs in `README.md`.
+- Three-replica concurrency proof — rerun through Nginx on 2026-08-25 with
+  1/199 room and 3/197 equipment success/conflict results.
 - Full-profile load test numbers.
 - Room/equipment/pricing admin CRUD (Tier 2).
 - All Tier 3 features, by choice.

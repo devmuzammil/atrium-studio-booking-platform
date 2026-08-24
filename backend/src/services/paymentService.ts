@@ -91,18 +91,18 @@ async function processPaymentWebhookOnce(
     const booking = await transaction.booking.findUnique({ where: { id: payment.bookingId }, select: { id: true, status: true, holdExpiresAt: true, amountMinor: true, currency: true } });
     if (!booking) return { status: 'recorded_unknown' };
 
-    if (input.event === 'charge.succeeded' && payment.status === PaymentStatus.PROCESSING) {
+    if (input.event === 'charge.succeeded'
+      && (payment.status === PaymentStatus.PROCESSING || payment.status === PaymentStatus.FAILED)) {
       await transaction.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.SUCCEEDED } });
       if (booking.status === BookingStatus.PENDING_PAYMENT && booking.holdExpiresAt && booking.holdExpiresAt > new Date()) {
         await transitionBookingInTransaction(transaction, { bookingId: booking.id, to: BookingStatus.CONFIRMED, reason: 'payment succeeded' });
         return { status: 'confirmed' };
       }
-      if (booking.status === BookingStatus.EXPIRED || !booking.holdExpiresAt || booking.holdExpiresAt <= new Date()) {
+      if (booking.status === BookingStatus.EXPIRED || booking.status === BookingStatus.FAILED || !booking.holdExpiresAt || booking.holdExpiresAt <= new Date()) {
         await transaction.refund.create({ data: { bookingId: booking.id, paymentId: payment.id, idempotencyKey: `refund:${payment.id}`, amountMinor: payment.amountMinor, currency: payment.currency, status: PaymentStatus.PROCESSING } });
         if (booking.status === BookingStatus.PENDING_PAYMENT) {
           await transitionBookingInTransaction(transaction, { bookingId: booking.id, to: BookingStatus.EXPIRED, reason: 'payment completed after hold expiry' });
         }
-        await transitionBookingInTransaction(transaction, { bookingId: booking.id, to: BookingStatus.REFUNDED, reason: 'payment succeeded after hold expiry' });
         return { status: 'refund_required', refundChargeId: input.chargeId, refundAmountMinor: payment.amountMinor, refundKey: `refund:${payment.id}` };
       }
     } else if (input.event === 'charge.failed' && payment.status === PaymentStatus.PROCESSING) {
@@ -121,7 +121,21 @@ async function processPaymentWebhookOnce(
   }
 
   if (result.status === 'refund_required' && result.refundKey && result.refundChargeId && result.refundAmountMinor !== undefined) {
-    await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.refundChargeId, amountMinor: result.refundAmountMinor });
+    try {
+      const providerRefund = await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.refundChargeId, amountMinor: result.refundAmountMinor });
+      const refund = await database.refund.findUnique({ where: { idempotencyKey: result.refundKey }, select: { id: true, bookingId: true } });
+      if (refund) {
+        await database.$transaction(async (transaction) => {
+          await transaction.refund.update({ where: { id: refund.id }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+          const booking = await transaction.booking.findUnique({ where: { id: refund.bookingId }, select: { status: true } });
+          if (booking?.status === BookingStatus.EXPIRED || booking?.status === BookingStatus.FAILED) {
+            await transitionBookingInTransaction(transaction, { bookingId: refund.bookingId, to: BookingStatus.REFUNDED, reason: 'late payment refund completed' });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Payment refund remains recoverable:', error);
+    }
   }
   return { status: result.status };
 }

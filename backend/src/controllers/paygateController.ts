@@ -49,6 +49,7 @@ export async function postRefund(request: Request, response: Response, next: Nex
       idempotencyKey: requiredHeader(request, 'Idempotency-Key'),
       chargeId: typeof request.body?.charge_id === 'string' ? request.body.charge_id : '',
       amountMinor: requiredBodyNumber(request.body?.amount_minor, 'amount_minor'),
+      currency: typeof request.body?.currency === 'string' ? request.body.currency : undefined,
     });
     response.status(202).json({ refund_id: refund.refundId, status: refund.status.toLowerCase() });
   } catch (error) {

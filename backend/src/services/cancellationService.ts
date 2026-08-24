@@ -40,6 +40,7 @@ export async function cancelBooking(
   actorId: string,
 ): Promise<{ bookingId: string; status: BookingStatus; refundAmountMinor: number }> {
   const result = await database.$transaction(async (transaction) => {
+    await transaction.$queryRaw(Prisma.sql`SELECT id FROM bookings WHERE id = ${bookingId}::uuid FOR UPDATE`);
     const booking = await transaction.booking.findUnique({
       where: { id: bookingId },
       select: { id: true, userId: true, roomId: true, status: true, amountMinor: true, currency: true, pricingSnapshot: true, policySnapshot: true },
@@ -75,13 +76,50 @@ export async function cancelBooking(
       create: { bookingId, paymentId: payment.id, idempotencyKey: refundKey, amountMinor: refundAmountMinor, currency: booking.currency, status: PaymentStatus.PROCESSING },
       update: {},
     });
-    await transitionBookingInTransaction(transaction, { bookingId, to: BookingStatus.REFUNDED, actorId, reason: 'cancellation refund recorded' });
-    return { bookingId, status: BookingStatus.REFUNDED, refundAmountMinor, providerChargeId: payment.providerChargeId, refundId: refund.id, refundKey };
+    return { bookingId, status: BookingStatus.CANCELLED, refundAmountMinor, providerChargeId: payment.providerChargeId, refundId: refund.id, refundKey };
   });
 
   if ('providerChargeId' in result && result.providerChargeId && 'refundKey' in result && result.refundKey && 'refundId' in result && result.refundId && result.refundAmountMinor > 0) {
-    const providerRefund = await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.providerChargeId, amountMinor: result.refundAmountMinor });
-    await database.refund.update({ where: { id: result.refundId }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+    try {
+      const providerRefund = await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.providerChargeId, amountMinor: result.refundAmountMinor });
+      await database.$transaction(async (transaction) => {
+        await transaction.refund.update({ where: { id: result.refundId }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+        await transitionBookingInTransaction(transaction, { bookingId, to: BookingStatus.REFUNDED, actorId, reason: 'cancellation refund completed' });
+      });
+      return { ...result, status: BookingStatus.REFUNDED };
+    } catch (error) {
+      console.error('Cancellation refund remains recoverable:', error);
+    }
   }
   return result;
+}
+
+export async function retryPendingRefunds(database: PrismaClient, provider: PaymentProvider): Promise<number> {
+  const pending = await database.refund.findMany({
+    where: { status: PaymentStatus.PROCESSING },
+    select: { id: true, bookingId: true, paymentId: true, idempotencyKey: true, amountMinor: true },
+    take: 50,
+    orderBy: { createdAt: 'asc' },
+  });
+  let completed = 0;
+  for (const refund of pending) {
+    const payment = await database.payment.findUnique({ where: { id: refund.paymentId }, select: { providerChargeId: true } });
+    if (!payment?.providerChargeId) continue;
+    try {
+      const providerRefund = await provider.refund({ idempotencyKey: refund.idempotencyKey, chargeId: payment.providerChargeId, amountMinor: refund.amountMinor });
+      await database.$transaction(async (transaction) => {
+        const updated = await transaction.refund.updateMany({ where: { id: refund.id, status: PaymentStatus.PROCESSING }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+        if (updated.count === 0) return;
+        await transaction.$queryRaw(Prisma.sql`SELECT id FROM bookings WHERE id = ${refund.bookingId}::uuid FOR UPDATE`);
+        const booking = await transaction.booking.findUnique({ where: { id: refund.bookingId }, select: { status: true } });
+        if (booking?.status === BookingStatus.CANCELLED || booking?.status === BookingStatus.EXPIRED) {
+          await transitionBookingInTransaction(transaction, { bookingId: refund.bookingId, to: BookingStatus.REFUNDED, reason: 'pending refund completed' });
+        }
+      });
+      completed += 1;
+    } catch (error) {
+      console.error('Pending refund retry failed:', error);
+    }
+  }
+  return completed;
 }

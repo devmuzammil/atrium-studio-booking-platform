@@ -30,9 +30,14 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const database = dependencies.database || (prisma as unknown as PrismaClient & HealthDatabase);
   const paygateHealth = dependencies.paygateHealth || prisma.paygateCharge;
   const instanceId = process.env.INSTANCE_ID || 'local';
+  const corsOrigin = process.env.CORS_ORIGIN?.trim();
 
   app.use((request, response, next) => {
-    response.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = request.header('origin');
+    if (!corsOrigin || corsOrigin === '*' || !origin || origin === corsOrigin) {
+      response.setHeader('Access-Control-Allow-Origin', corsOrigin && corsOrigin !== '*' && origin ? origin : '*');
+    }
+    response.setHeader('Vary', 'Origin');
     response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-Request-ID');
     response.setHeader('Access-Control-Expose-Headers', 'x-request-id, x-instance-id');
     response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');

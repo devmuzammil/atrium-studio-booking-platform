@@ -1,6 +1,8 @@
 import { prisma } from './config/prisma';
 import { getConfig } from './config/env';
 import { expireDueHolds } from './services/holdExpiryService';
+import { localPaymentProvider } from './services/paymentService';
+import { retryPendingRefunds } from './services/cancellationService';
 
 const pollIntervalMs = 1000;
 
@@ -22,6 +24,7 @@ async function runWorker(): Promise<void> {
   while (!stopping) {
     try {
       await expireDueHolds(prisma);
+      await retryPendingRefunds(prisma, localPaymentProvider(prisma));
     } catch (error) {
       console.error('Hold expiry poll failed:', error);
     }

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "functions": {
+    "api/index.ts": {
+      "runtime": "nodejs22.x",
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/paygate/:path*", "destination": "/api/paygate/:path*" }
+  ],
+  "crons": [
+    { "path": "/api/cron", "schedule": "0 4 * * *" }
+  ]
+}

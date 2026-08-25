@@ -167,6 +167,38 @@ export async function listPlatformUsers(): Promise<{ users: ManagedUser[] }> { r
 export async function createPlatformUser(input: { email: string; password: string; role: string; venueId: string }): Promise<{ user: ManagedUser }> { return apiRequest('/api/platform/users', { method: 'POST', body: JSON.stringify(input) }); }
 export async function replacePlatformUserRoles(id: string, roles: Array<{ role: string; venueId: string }>): Promise<{ user: ManagedUser }> { return apiRequest(`/api/platform/users/${id}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) }); }
 
+export interface ManagedRoom {
+  id: string;
+  venueId: string;
+  name: string;
+  capacity: number;
+  hourlyRateMinor: number;
+  currency: string;
+  amenities: unknown;
+  minDurationMinutes: number;
+  maxDurationMinutes: number;
+  overbookingPercent: number;
+}
+
+export interface ManagedEquipment {
+  id: string;
+  venueId: string;
+  name: string;
+  hourlyRateMinor: number;
+  currency: string;
+  totalUnits: number;
+  overbookingPercent: number;
+}
+
+export async function listManagedRooms(venueId: string): Promise<{ rooms: ManagedRoom[] }> { return apiRequest(`/api/venues/${venueId}/rooms`); }
+export async function createManagedRoom(venueId: string, input: Record<string, unknown>): Promise<{ room: ManagedRoom }> { return apiRequest(`/api/venues/${venueId}/rooms`, { method: 'POST', body: JSON.stringify(input) }); }
+export async function updateManagedRoom(id: string, input: Record<string, unknown>): Promise<{ room: ManagedRoom }> { return apiRequest(`/api/rooms/${id}`, { method: 'PATCH', body: JSON.stringify(input) }); }
+export async function deleteManagedRoom(id: string): Promise<void> { return apiRequest(`/api/rooms/${id}`, { method: 'DELETE' }); }
+export async function listManagedEquipment(venueId: string): Promise<{ equipment: ManagedEquipment[] }> { return apiRequest(`/api/venues/${venueId}/equipment`); }
+export async function createManagedEquipment(venueId: string, input: Record<string, unknown>): Promise<{ equipment: ManagedEquipment }> { return apiRequest(`/api/venues/${venueId}/equipment`, { method: 'POST', body: JSON.stringify(input) }); }
+export async function updateManagedEquipment(id: string, input: Record<string, unknown>): Promise<{ equipment: ManagedEquipment }> { return apiRequest(`/api/equipment/${id}`, { method: 'PATCH', body: JSON.stringify(input) }); }
+export async function deleteManagedEquipment(id: string): Promise<void> { return apiRequest(`/api/equipment/${id}`, { method: 'DELETE' }); }
+
 export async function getHealth(): Promise<{
   status: string;
   dependencies: Record<string, string>;

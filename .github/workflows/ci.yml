@@ -7,6 +7,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atrium
+          POSTGRES_PASSWORD: atrium_password
+          POSTGRES_DB: atrium
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atrium -d atrium"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -18,5 +32,53 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://atrium:atrium_password@localhost:5432/atrium?schema=public
       - run: npm run build
+        env:
+          DATABASE_URL: postgresql://atrium:atrium_password@localhost:5432/atrium?schema=public
+          JWT_SECRET: ci-test-secret
       - run: npm test
+        env:
+          DATABASE_URL: postgresql://atrium:atrium_password@localhost:5432/atrium?schema=public
+          JWT_SECRET: ci-test-secret
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  concurrency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - run: docker compose up --build -d postgres api1 api2 api3 nginx
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run test:concurrency
+        working-directory: backend
+        env:
+          CONCURRENCY_API_URL: http://localhost:8080
+          DATABASE_URL: postgresql://atrium:atrium_password@localhost:5434/atrium?schema=public
+          JWT_SECRET: local-development-secret
+      - if: always()
+        run: docker compose logs --no-color api1 api2 api3 nginx
+      - if: always()
+        run: docker compose down -v

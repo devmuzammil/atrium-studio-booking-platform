@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { addVenueStaff, createPlatformUser, createPlatformVenue, deletePlatformVenue, getVenueConfiguration, getVenuePolicy, listPlatformUsers, listPlatformVenues, listVenueStaff, removeVenueStaff, replacePlatformUserRoles, updatePlatformVenue, updateVenueConfiguration, updateVenuePolicy } from '../api/bookings';
+import { addVenueStaff, createManagedEquipment, createManagedRoom, createPlatformUser, createPlatformVenue, deleteManagedEquipment, deleteManagedRoom, deletePlatformVenue, getVenueConfiguration, getVenuePolicy, listManagedEquipment, listManagedRooms, listPlatformUsers, listPlatformVenues, listVenueStaff, removeVenueStaff, replacePlatformUserRoles, updateManagedEquipment, updateManagedRoom, updatePlatformVenue, updateVenueConfiguration, updateVenuePolicy, type ManagedEquipment, type ManagedRoom } from '../api/bookings';
 import { ApiError } from '../api/client';
 import { Alert } from '../components/ui';
 
@@ -36,6 +36,10 @@ export function AdminPage() {
   const [newPlatformVenue, setNewPlatformVenue] = useState({ name: '', city: '', timezone: 'UTC', operatingSchedule: '{}' });
   const [newPlatformUser, setNewPlatformUser] = useState({ email: '', password: '', role: 'CUSTOMER', venueId: '' });
   const [roleEdit, setRoleEdit] = useState({ userId: '', role: 'VENUE_STAFF', venueId: '' });
+  const [rooms, setRooms] = useState<ManagedRoom[]>([]);
+  const [equipment, setEquipment] = useState<ManagedEquipment[]>([]);
+  const [newRoom, setNewRoom] = useState({ name: '', capacity: '1', hourlyRateMinor: '0', amenities: '', minDurationMinutes: '60', maxDurationMinutes: '480' });
+  const [newEquipment, setNewEquipment] = useState({ name: '', totalUnits: '1', hourlyRateMinor: '0' });
 
   useEffect(() => {
     if (!venueId || !canEditPolicy) return;
@@ -56,6 +60,12 @@ export function AdminPage() {
       .catch((err) => {
         setError(err instanceof ApiError ? err.message : 'Unable to load policy');
       });
+    void Promise.all([listManagedRooms(venueId), listManagedEquipment(venueId)])
+      .then(([roomsResult, equipmentResult]) => {
+        setRooms(roomsResult.rooms);
+        setEquipment(equipmentResult.equipment);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load venue inventory'));
   }, [venueId, canEditPolicy]);
 
   useEffect(() => {
@@ -162,6 +172,54 @@ export function AdminPage() {
     } catch (err) { setError(err instanceof ApiError ? err.message : 'User role could not be updated'); }
   }
 
+  async function addRoom(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    try {
+      const result = await createManagedRoom(venueId, { name: newRoom.name, capacity: Number(newRoom.capacity), hourlyRateMinor: Number(newRoom.hourlyRateMinor), amenities: newRoom.amenities.split(',').map((item) => item.trim()).filter(Boolean), minDurationMinutes: Number(newRoom.minDurationMinutes), maxDurationMinutes: Number(newRoom.maxDurationMinutes) });
+      setRooms((current) => [...current, result.room]);
+      setNewRoom({ name: '', capacity: '1', hourlyRateMinor: '0', amenities: '', minDurationMinutes: '60', maxDurationMinutes: '480' });
+      setMessage('Room created.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Room could not be created'); }
+  }
+
+  async function saveRoom(room: ManagedRoom): Promise<void> {
+    try {
+      const result = await updateManagedRoom(room.id, { name: room.name, capacity: room.capacity, hourlyRateMinor: room.hourlyRateMinor, amenities: Array.isArray(room.amenities) ? room.amenities : [], minDurationMinutes: room.minDurationMinutes, maxDurationMinutes: room.maxDurationMinutes });
+      setRooms((current) => current.map((item) => item.id === room.id ? result.room : item));
+      setMessage('Room updated.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Room could not be updated'); }
+  }
+
+  async function removeRoom(id: string): Promise<void> {
+    if (!window.confirm('Delete this room?')) return;
+    try { await deleteManagedRoom(id); setRooms((current) => current.filter((room) => room.id !== id)); setMessage('Room deleted.'); }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Room could not be deleted'); }
+  }
+
+  async function addEquipment(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    try {
+      const result = await createManagedEquipment(venueId, { name: newEquipment.name, totalUnits: Number(newEquipment.totalUnits), hourlyRateMinor: Number(newEquipment.hourlyRateMinor) });
+      setEquipment((current) => [...current, result.equipment]);
+      setNewEquipment({ name: '', totalUnits: '1', hourlyRateMinor: '0' });
+      setMessage('Equipment created.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Equipment could not be created'); }
+  }
+
+  async function saveEquipment(item: ManagedEquipment): Promise<void> {
+    try {
+      const result = await updateManagedEquipment(item.id, { name: item.name, totalUnits: item.totalUnits, hourlyRateMinor: item.hourlyRateMinor });
+      setEquipment((current) => current.map((entry) => entry.id === item.id ? result.equipment : entry));
+      setMessage('Equipment updated.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Equipment could not be updated'); }
+  }
+
+  async function removeEquipment(id: string): Promise<void> {
+    if (!window.confirm('Delete this equipment type?')) return;
+    try { await deleteManagedEquipment(id); setEquipment((current) => current.filter((item) => item.id !== id)); setMessage('Equipment deleted.'); }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Equipment could not be deleted'); }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -200,6 +258,33 @@ export function AdminPage() {
           </label>
           <button type="submit" disabled={savingVenue} className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">{savingVenue ? 'Saving…' : 'Save venue settings'}</button>
         </form>
+      ) : null}
+
+      {canEditPolicy && venueId ? (
+        <section className="space-y-4 rounded-2xl border border-[#d9d2c5] bg-white p-5 shadow-sm">
+          <div>
+            <h3 className="text-lg font-semibold">Rooms</h3>
+            <p className="text-sm text-slate-600">Manage room details, pricing, capacity, amenities, and booking limits.</p>
+          </div>
+          <form onSubmit={addRoom} className="grid gap-2 sm:grid-cols-3">
+            <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="room name" value={newRoom.name} onChange={(event) => setNewRoom({ ...newRoom, name: event.target.value })} required />
+            <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="1" placeholder="capacity" value={newRoom.capacity} onChange={(event) => setNewRoom({ ...newRoom, capacity: event.target.value })} required />
+            <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="0" placeholder="hourly price (minor)" value={newRoom.hourlyRateMinor} onChange={(event) => setNewRoom({ ...newRoom, hourlyRateMinor: event.target.value })} required />
+            <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="amenities, comma-separated" value={newRoom.amenities} onChange={(event) => setNewRoom({ ...newRoom, amenities: event.target.value })} />
+            <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="30" placeholder="minimum minutes" value={newRoom.minDurationMinutes} onChange={(event) => setNewRoom({ ...newRoom, minDurationMinutes: event.target.value })} required />
+            <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="30" placeholder="maximum minutes" value={newRoom.maxDurationMinutes} onChange={(event) => setNewRoom({ ...newRoom, maxDurationMinutes: event.target.value })} required />
+            <button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-3">Create room</button>
+          </form>
+          <div className="space-y-3">{rooms.map((room) => <div key={room.id} className="grid gap-2 border-t border-[#ece7de] pt-3 sm:grid-cols-3"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={room.name} onChange={(event) => setRooms((current) => current.map((item) => item.id === room.id ? { ...item, name: event.target.value } : item))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="1" value={room.capacity} onChange={(event) => setRooms((current) => current.map((item) => item.id === room.id ? { ...item, capacity: Number(event.target.value) } : item))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="0" value={room.hourlyRateMinor} onChange={(event) => setRooms((current) => current.map((item) => item.id === room.id ? { ...item, hourlyRateMinor: Number(event.target.value) } : item))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={Array.isArray(room.amenities) ? room.amenities.join(', ') : ''} onChange={(event) => setRooms((current) => current.map((item) => item.id === room.id ? { ...item, amenities: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) } : item))} placeholder="amenities" /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="30" value={room.minDurationMinutes} onChange={(event) => setRooms((current) => current.map((item) => item.id === room.id ? { ...item, minDurationMinutes: Number(event.target.value) } : item))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="30" value={room.maxDurationMinutes} onChange={(event) => setRooms((current) => current.map((item) => item.id === room.id ? { ...item, maxDurationMinutes: Number(event.target.value) } : item))} /><div className="flex gap-3 text-sm"><button type="button" onClick={() => void saveRoom(room)} className="text-[#c45c26] hover:underline">Save</button><button type="button" onClick={() => void removeRoom(room.id)} className="text-rose-700 hover:underline">Delete</button></div></div>)}</div>
+        </section>
+      ) : null}
+
+      {canEditPolicy && venueId ? (
+        <section className="space-y-4 rounded-2xl border border-[#d9d2c5] bg-white p-5 shadow-sm">
+          <div><h3 className="text-lg font-semibold">Equipment</h3><p className="text-sm text-slate-600">Manage equipment types, available units, and hourly pricing.</p></div>
+          <form onSubmit={addEquipment} className="grid gap-2 sm:grid-cols-3"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="equipment name" value={newEquipment.name} onChange={(event) => setNewEquipment({ ...newEquipment, name: event.target.value })} required /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="1" placeholder="unit count" value={newEquipment.totalUnits} onChange={(event) => setNewEquipment({ ...newEquipment, totalUnits: event.target.value })} required /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="0" placeholder="hourly price (minor)" value={newEquipment.hourlyRateMinor} onChange={(event) => setNewEquipment({ ...newEquipment, hourlyRateMinor: event.target.value })} required /><button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-3">Create equipment</button></form>
+          <div className="space-y-3">{equipment.map((item) => <div key={item.id} className="grid gap-2 border-t border-[#ece7de] pt-3 sm:grid-cols-3"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.name} onChange={(event) => setEquipment((current) => current.map((entry) => entry.id === item.id ? { ...entry, name: event.target.value } : entry))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="1" value={item.totalUnits} onChange={(event) => setEquipment((current) => current.map((entry) => entry.id === item.id ? { ...entry, totalUnits: Number(event.target.value) } : entry))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="number" min="0" value={item.hourlyRateMinor} onChange={(event) => setEquipment((current) => current.map((entry) => entry.id === item.id ? { ...entry, hourlyRateMinor: Number(event.target.value) } : entry))} /><div className="flex gap-3 text-sm"><button type="button" onClick={() => void saveEquipment(item)} className="text-[#c45c26] hover:underline">Save</button><button type="button" onClick={() => void removeEquipment(item.id)} className="text-rose-700 hover:underline">Delete</button></div></div>)}</div>
+        </section>
       ) : null}
 
       {primaryRole === 'PLATFORM_ADMIN' ? (

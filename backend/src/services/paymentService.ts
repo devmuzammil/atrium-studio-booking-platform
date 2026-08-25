@@ -156,7 +156,7 @@ async function processPaymentWebhookOnce(
       const refund = await database.refund.findUnique({ where: { idempotencyKey: result.refundKey }, select: { id: true, bookingId: true } });
       if (refund) {
         await database.$transaction(async (transaction) => {
-          await transaction.refund.update({ where: { id: refund.id }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+          await transaction.refund.update({ where: { id: refund.id }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.SUCCEEDED } });
           const booking = await transaction.booking.findUnique({ where: { id: refund.bookingId }, select: { status: true } });
           if (booking?.status === BookingStatus.EXPIRED || booking?.status === BookingStatus.FAILED) {
             await transitionBookingInTransaction(transaction, { bookingId: refund.bookingId, to: BookingStatus.REFUNDED, reason: 'late payment refund completed' });

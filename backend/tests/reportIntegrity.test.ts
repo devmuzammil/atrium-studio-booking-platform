@@ -167,7 +167,7 @@ describe('reconciliation integration', () => {
     const refunded = await createBooking(BookingStatus.REFUNDED, 2000, slot(13, 1));
     await createPayment(refunded, 2000, PaymentStatus.REFUNDED, 'ch_reconcile_refunded');
     const refundedPayment = await prisma.payment.findUniqueOrThrow({ where: { bookingId: refunded } });
-    await prisma.refund.create({ data: { bookingId: refunded, paymentId: refundedPayment.id, idempotencyKey: randomUUID(), providerRefundId: 'rf_reconcile_valid', amountMinor: 2000, currency: 'PKR', status: PaymentStatus.SUCCEEDED } });
+    await prisma.refund.create({ data: { bookingId: refunded, paymentId: refundedPayment.id, idempotencyKey: randomUUID(), providerRefundId: 'rf_reconcile_valid', amountMinor: 2000, currency: 'PKR', status: PaymentStatus.REFUNDED } });
 
     const multiple = await createBooking(BookingStatus.REFUNDED, 3000, slot(14, 1));
     await createPayment(multiple, 3000, PaymentStatus.REFUNDED, 'ch_reconcile_multiple');

@@ -87,7 +87,7 @@ export async function cancelBooking(
     try {
       const providerRefund = await provider.refund({ idempotencyKey: result.refundKey, chargeId: result.providerChargeId, amountMinor: result.refundAmountMinor });
       await database.$transaction(async (transaction) => {
-        await transaction.refund.update({ where: { id: result.refundId }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+        await transaction.refund.update({ where: { id: result.refundId }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.SUCCEEDED } });
         await transitionBookingInTransaction(transaction, { bookingId, to: BookingStatus.REFUNDED, actorId, reason: 'cancellation refund completed' });
       });
       return { ...result, status: BookingStatus.REFUNDED };
@@ -112,7 +112,7 @@ export async function retryPendingRefunds(database: PrismaClient, provider: Paym
     try {
       const providerRefund = await provider.refund({ idempotencyKey: refund.idempotencyKey, chargeId: payment.providerChargeId, amountMinor: refund.amountMinor });
       await database.$transaction(async (transaction) => {
-        const updated = await transaction.refund.updateMany({ where: { id: refund.id, status: PaymentStatus.PROCESSING }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.REFUNDED } });
+        const updated = await transaction.refund.updateMany({ where: { id: refund.id, status: PaymentStatus.PROCESSING }, data: { providerRefundId: providerRefund.refundId, status: PaymentStatus.SUCCEEDED } });
         if (updated.count === 0) return;
         await transaction.$queryRaw(Prisma.sql`SELECT id FROM bookings WHERE id = ${refund.bookingId}::uuid FOR UPDATE`);
         const booking = await transaction.booking.findUnique({ where: { id: refund.bookingId }, select: { status: true } });

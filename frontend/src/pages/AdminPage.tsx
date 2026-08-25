@@ -211,6 +211,17 @@ export function AdminPage() {
     } catch (err) { setError(err instanceof ApiError ? err.message : 'User role could not be updated'); }
   }
 
+  async function removeUserRole(userId: string, role: string, venueId: string): Promise<void> {
+    if (!window.confirm(`Remove ${role} from this user?`)) return;
+    const user = platformUsers.find((item) => item.id === userId);
+    if (!user) return;
+    try {
+      const result = await replacePlatformUserRoles(userId, user.roles.filter((assignment) => assignment.role !== role || assignment.venueId !== venueId));
+      setPlatformUsers((current) => current.map((item) => item.id === result.user.id ? result.user : item));
+      setMessage('User role removed.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'User role could not be removed'); }
+  }
+
   async function addRoom(event: FormEvent): Promise<void> {
     event.preventDefault();
     try {
@@ -349,7 +360,7 @@ export function AdminPage() {
             <h3 className="text-lg font-semibold">User administration</h3>
             <form onSubmit={createUser} className="grid gap-2 sm:grid-cols-4"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="email" placeholder="email" value={newPlatformUser.email} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, email: event.target.value })} required /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="password" placeholder="temporary password" value={newPlatformUser.password} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, password: event.target.value })} required /><select className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={newPlatformUser.role} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, role: event.target.value })}>{['CUSTOMER', 'VENUE_STAFF', 'VENUE_ADMIN', 'PLATFORM_ADMIN'].map((role) => <option key={role}>{role}</option>)}</select><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="venue UUID" value={newPlatformUser.venueId} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, venueId: event.target.value })} required /><button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-4">Create user</button></form>
             <form onSubmit={saveUserRole} className="grid gap-2 border-t border-[#ece7de] pt-3 sm:grid-cols-3"><select className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={roleEdit.userId} onChange={(event) => setRoleEdit({ ...roleEdit, userId: event.target.value })}><option value="">Select user</option>{platformUsers.map((item) => <option key={item.id} value={item.id}>{item.email}</option>)}</select><select className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={roleEdit.role} onChange={(event) => setRoleEdit({ ...roleEdit, role: event.target.value })}>{['CUSTOMER', 'VENUE_STAFF', 'VENUE_ADMIN', 'PLATFORM_ADMIN'].map((role) => <option key={role}>{role}</option>)}</select><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="venue UUID" value={roleEdit.venueId} onChange={(event) => setRoleEdit({ ...roleEdit, venueId: event.target.value })} required /><button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-3">Set user role</button></form>
-            <ul className="divide-y divide-[#ece7de]">{platformUsers.map((item) => <li key={item.id} className="py-2 text-sm"><span className="font-medium">{item.email}</span><span className="ml-2 text-slate-500">{item.roles.map((role) => `${role.role} (${role.venueId})`).join(', ') || 'No roles'}</span></li>)}</ul>
+            <ul className="divide-y divide-[#ece7de]">{platformUsers.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="font-medium">{item.email}</span>{item.roles.length > 0 ? <span className="flex flex-wrap justify-end gap-2">{item.roles.map((role) => <span key={`${role.role}-${role.venueId}`} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">{role.role} ({role.venueId})<button type="button" onClick={() => void removeUserRole(item.id, role.role, role.venueId)} className="font-semibold text-rose-700 hover:underline" aria-label={`Remove ${role.role} from ${item.email}`}>Remove</button></span>)}</span> : <span className="text-slate-500">No roles</span>}</li>)}</ul>
           </section>
         </>
       ) : null}

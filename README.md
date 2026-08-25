@@ -116,6 +116,9 @@ benchmarking.
 | PUT | `/api/venues/:venueId/cancellation-policy` |
 | GET | `/api/reports/reconciliation` |
 | GET | `/api/reports/revenue` |
+| GET | `/api/platform/users` (platform admin) |
+| POST | `/api/platform/users` (platform admin) |
+| PUT | `/api/platform/users/:id/roles` (platform admin; replace assignments, including `roles: []` to remove all) |
 | GET | `/health` |
 
 Room double-booking is enforced by a PostgreSQL exclusion constraint. Equipment
@@ -126,6 +129,10 @@ Venue-scoped resource reads resolve the target room or venue first and use the
 shared authorization policy; cross-venue UUID access is denied. Internal mock
 Paygate charge/refund routes require the signed provider request, while booking
 payments and webhooks use their separate authenticated/signature boundaries.
+Platform admins can replace a user's complete role assignment set from the
+admin screen. Removing an individual assignment keeps the user's other
+assignments; removing the final assignment submits an empty role list and
+leaves the user without venue access.
 Refunds lock the charge row, enforce captured amount and currency limits, and
 use durable idempotency keys. Failed refunds remain `PROCESSING` and are
 retryable rather than being reported as complete.

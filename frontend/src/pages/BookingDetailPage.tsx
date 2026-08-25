@@ -14,6 +14,7 @@ export function BookingDetailPage() {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [availability, setAvailability] = useState<{ available: boolean; busy: Array<{ start: string; end: string; status: string }> } | null>(null);
@@ -54,10 +55,6 @@ export function BookingDetailPage() {
 
   async function onCancel(): Promise<void> {
     if (!bookingId || !booking) return;
-    const confirmed = window.confirm(
-      `Cancel booking?\n\nThe refund amount is calculated by the backend policy. Continue?`,
-    );
-    if (!confirmed) return;
     setCancelling(true);
     setError(null);
     setMessage(null);
@@ -73,6 +70,7 @@ export function BookingDetailPage() {
       }
     } finally {
       setCancelling(false);
+      setShowCancelConfirmation(false);
     }
   }
 
@@ -146,6 +144,31 @@ export function BookingDetailPage() {
       {message ? <Alert tone="success">{message}</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
+      {showCancelConfirmation ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm" role="alertdialog" aria-labelledby="cancel-confirmation-title">
+          <h3 id="cancel-confirmation-title" className="text-lg font-semibold text-amber-950">Cancel booking?</h3>
+          <p className="mt-2 text-sm text-amber-900">The refund amount is calculated by the cancellation policy. Do you want to continue?</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={cancelling}
+              onClick={() => void onCancel()}
+              className="rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-rose-800 disabled:opacity-60"
+            >
+              {cancelling ? 'Cancelling…' : 'Confirm cancellation'}
+            </button>
+            <button
+              type="button"
+              disabled={cancelling}
+              onClick={() => setShowCancelConfirmation(false)}
+              className="rounded-lg border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium text-amber-900 disabled:opacity-60"
+            >
+              Keep booking
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <div className="flex flex-wrap gap-3">
         {canCheckout && (booking.status === 'HELD' || booking.status === 'PENDING_PAYMENT') ? (
           <Link to={`/checkout/${booking.id}`} className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white">
@@ -155,11 +178,11 @@ export function BookingDetailPage() {
         {canCancel ? (
           <button
             type="button"
-            disabled={cancelling}
-            onClick={() => void onCancel()}
+            disabled={cancelling || showCancelConfirmation}
+            onClick={() => setShowCancelConfirmation(true)}
             className="rounded-lg border border-rose-300 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-800 disabled:opacity-60"
           >
-            {cancelling ? 'Cancelling…' : 'Cancel booking'}
+            Cancel booking
           </button>
         ) : null}
         <Link to="/bookings" className="rounded-lg border border-[#d9d2c5] bg-white px-4 py-2.5 text-sm">Back to list</Link>

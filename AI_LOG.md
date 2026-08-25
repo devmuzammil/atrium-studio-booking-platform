@@ -222,6 +222,13 @@
   other roles showed only Open. Removed the list action so all roles share the
   same list format; cancellation remains available from booking detail.
 
+## Cancellation Confirmation Follow-up
+
+- Reported issue: cancelling a booking used the browser's native confirmation
+  alert, which looked inconsistent with the application. Replaced it with an
+  in-page confirmation panel that keeps the policy explanation and provides
+  explicit confirm and keep-booking actions.
+
 ## Tier 2 verification and seed profiles
 
 - Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.

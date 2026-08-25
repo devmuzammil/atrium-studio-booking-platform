@@ -22,7 +22,7 @@ services:
       - key: INSTANCE_ID
         value: render
       - key: PAYGATE_CHAOS
-        value: "on"
+        value: "off"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET

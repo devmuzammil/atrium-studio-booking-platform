@@ -124,6 +124,26 @@ export async function updateVenuePolicy(
   });
 }
 
+export async function getVenueConfiguration(venueId: string): Promise<{ venue: { id: string; name: string; city: string; timezone: string; operatingSchedule: unknown } }> {
+  return apiRequest(`/api/venues/${venueId}/configuration`);
+}
+
+export async function updateVenueConfiguration(venueId: string, input: { name: string; city: string; timezone: string; operatingSchedule: unknown }): Promise<{ venue: { id: string; name: string; city: string; timezone: string; operatingSchedule: unknown } }> {
+  return apiRequest(`/api/venues/${venueId}/configuration`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export async function listVenueStaff(venueId: string): Promise<{ staff: Array<{ userId: string; email: string }> }> {
+  return apiRequest(`/api/venues/${venueId}/staff`);
+}
+
+export async function addVenueStaff(venueId: string, email: string): Promise<{ staff: { userId: string; email: string } }> {
+  return apiRequest(`/api/venues/${venueId}/staff`, { method: 'POST', body: JSON.stringify({ email }) });
+}
+
+export async function removeVenueStaff(venueId: string, userId: string): Promise<void> {
+  return apiRequest(`/api/venues/${venueId}/staff/${userId}`, { method: 'DELETE' });
+}
+
 export async function getHealth(): Promise<{
   status: string;
   dependencies: Record<string, string>;

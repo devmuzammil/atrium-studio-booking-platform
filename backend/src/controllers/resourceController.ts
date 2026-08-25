@@ -35,6 +35,80 @@ export async function listManagedRooms(request: Request, response: Response, nex
   } catch (error) { next(error); }
 }
 
+export async function getVenueConfiguration(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const authenticated = requireAuthenticatedUser(request);
+    const venueId = venueIdParam(request);
+    authorizeVenueAdmin(authenticated, venueId);
+    const venue = await prisma.venue.findUnique({ where: { id: venueId }, select: { id: true, name: true, city: true, timezone: true, operatingSchedule: true } });
+    if (!venue) { response.status(404).json({ error: 'Venue not found' }); return; }
+    response.json({ venue });
+  } catch (error) { next(error); }
+}
+
+export async function updateVenueConfiguration(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const authenticated = requireAuthenticatedUser(request);
+    const venueId = venueIdParam(request);
+    authorizeVenueAdmin(authenticated, venueId);
+    const input = body(request);
+    const operatingSchedule = input.operatingSchedule;
+    if (operatingSchedule !== undefined && (typeof operatingSchedule !== 'object' || operatingSchedule === null || Array.isArray(operatingSchedule))) {
+      throw Object.assign(new Error('operatingSchedule must be an object'), { statusCode: 400 });
+    }
+    const venue = await prisma.venue.update({
+      where: { id: venueId },
+      data: {
+        ...(input.name === undefined ? {} : { name: requiredVenueText(input.name, 'name') }),
+        ...(input.city === undefined ? {} : { city: requiredVenueText(input.city, 'city') }),
+        ...(input.timezone === undefined ? {} : { timezone: requiredVenueText(input.timezone, 'timezone') }),
+        ...(operatingSchedule === undefined ? {} : { operatingSchedule: operatingSchedule as object }),
+      },
+      select: { id: true, name: true, city: true, timezone: true, operatingSchedule: true },
+    });
+    response.json({ venue });
+  } catch (error) { next(error); }
+}
+
+function requiredVenueText(value: unknown, name: string): string {
+  if (typeof value !== 'string' || value.trim() === '') throw Object.assign(new Error(`${name} is required`), { statusCode: 400 });
+  return value.trim();
+}
+
+export async function listVenueStaff(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const authenticated = requireAuthenticatedUser(request);
+    const venueId = venueIdParam(request);
+    authorizeVenueAdmin(authenticated, venueId);
+    const staff = await prisma.userVenueRole.findMany({ where: { venueId, role: UserRole.VENUE_STAFF }, select: { userId: true, user: { select: { email: true } } }, orderBy: { createdAt: 'asc' } });
+    response.json({ staff: staff.map((member) => ({ userId: member.userId, email: member.user.email })) });
+  } catch (error) { next(error); }
+}
+
+export async function addVenueStaff(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const authenticated = requireAuthenticatedUser(request);
+    const venueId = venueIdParam(request);
+    authorizeVenueAdmin(authenticated, venueId);
+    const email = requiredVenueText(body(request).email, 'email').toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true } });
+    if (!user) { response.status(404).json({ error: 'User not found' }); return; }
+    const assignment = await prisma.userVenueRole.upsert({ where: { userId_venueId_role: { userId: user.id, venueId, role: UserRole.VENUE_STAFF } }, update: {}, create: { userId: user.id, venueId, role: UserRole.VENUE_STAFF }, select: { userId: true, user: { select: { email: true } } } });
+    response.status(201).json({ staff: { userId: assignment.userId, email: assignment.user.email } });
+  } catch (error) { next(error); }
+}
+
+export async function removeVenueStaff(request: Request, response: Response, next: NextFunction): Promise<void> {
+  try {
+    const authenticated = requireAuthenticatedUser(request);
+    const venueId = venueIdParam(request);
+    authorizeVenueAdmin(authenticated, venueId);
+    const userId = getResourceId(request);
+    await prisma.userVenueRole.delete({ where: { userId_venueId_role: { userId, venueId, role: UserRole.VENUE_STAFF } } });
+    response.status(204).end();
+  } catch (error) { next(error); }
+}
+
 export async function createManagedRoom(request: Request, response: Response, next: NextFunction): Promise<void> {
   try {
     const authenticated = requireAuthenticatedUser(request);

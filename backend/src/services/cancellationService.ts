@@ -38,6 +38,7 @@ export async function cancelBooking(
   provider: PaymentProvider,
   bookingId: string,
   actorId: string,
+  authorizedVenueId?: string,
 ): Promise<{ bookingId: string; status: BookingStatus; refundAmountMinor: number }> {
   const result = await database.$transaction(async (transaction) => {
     await transaction.$queryRaw(Prisma.sql`SELECT id FROM bookings WHERE id = ${bookingId}::uuid FOR UPDATE`);
@@ -45,13 +46,14 @@ export async function cancelBooking(
       where: { id: bookingId },
       select: { id: true, userId: true, roomId: true, status: true, amountMinor: true, currency: true, pricingSnapshot: true, policySnapshot: true },
     });
-    if (!booking || booking.userId !== actorId) throw new CancellationError('Booking is not accessible');
+    if (!booking) throw new CancellationError('Booking is not accessible');
+    const room = await transaction.room.findUnique({ where: { id: booking.roomId }, select: { venueId: true, hourlyRateMinor: true } });
+    if (booking.userId !== actorId && room?.venueId !== authorizedVenueId) throw new CancellationError('Booking is not accessible');
     if (!([BookingStatus.HELD, BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED] as BookingStatus[]).includes(booking.status)) {
       throw new CancellationError('This booking can no longer be cancelled');
     }
 
     const interval = await transaction.$queryRaw<Array<{ start: Date; end: Date }>>(Prisma.sql`SELECT lower(slot) AS start, upper(slot) AS end FROM bookings WHERE id = ${bookingId}::uuid`);
-    const room = await transaction.room.findUnique({ where: { id: booking.roomId }, select: { venueId: true, hourlyRateMinor: true } });
     if (!room || interval.length === 0) throw new CancellationError('Booking inventory could not be loaded');
     const hoursUntilStart = (interval[0].start.getTime() - Date.now()) / 3600000;
     const policy = await transaction.cancellationPolicy.findFirst({ where: { venueId: room.venueId, active: true }, orderBy: { version: 'desc' }, select: { tiers: true } });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { cancelBooking, getBooking } from '../api/bookings';
+import { cancelBooking, getBooking, getRoomAvailability } from '../api/bookings';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { BookingDetail } from '../types';
@@ -16,6 +16,7 @@ export function BookingDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<{ available: boolean; busy: Array<{ start: string; end: string; status: string }> } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!bookingId) return;
@@ -31,7 +32,12 @@ export function BookingDetailPage() {
       setError(null);
       try {
         const detail = await getBooking(bookingId);
-        if (!cancelled) setBooking(detail);
+        if (!cancelled) {
+          setBooking(detail);
+          void getRoomAvailability(detail.roomId, detail.start, detail.end).then((result) => {
+            if (!cancelled) setAvailability(result);
+          }).catch(() => undefined);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : 'Unable to load booking');
@@ -73,7 +79,8 @@ export function BookingDetailPage() {
   if (loading) return <LoadingSpinner label="Loading booking…" />;
   if (!booking) return <Alert tone="danger">{error || 'Booking not found'}</Alert>;
 
-  const canCancel = ['HELD', 'PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status) && user?.id === booking.userId;
+  const assignedToUser = user?.roles.some((role) => role.venueId === booking.room.venueId && ['VENUE_STAFF', 'VENUE_ADMIN'].includes(role.role)) ?? false;
+  const canCancel = ['HELD', 'PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status) && (user?.id === booking.userId || assignedToUser);
   const canCheckout = user?.id === booking.userId;
 
   return (
@@ -120,6 +127,21 @@ export function BookingDetailPage() {
         </div>
         {booking.holdExpiresAt ? <p className="text-xs text-slate-500">Hold expires: {formatDateTime(booking.holdExpiresAt)}</p> : null}
       </section>
+
+      {assignedToUser ? (
+        <section className="rounded-2xl border border-[#d9d2c5] bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-slate-900">Room availability</h3>
+          <p className="mt-1 text-sm text-slate-600">Operational view for this booking time.</p>
+          <p className={`mt-3 text-sm font-medium ${availability?.available ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {availability ? (availability.available ? 'Room is available for this time.' : 'Room has an overlapping booking.') : 'Checking room availability…'}
+          </p>
+          {availability && !availability.available ? (
+            <ul className="mt-2 space-y-1 text-sm text-slate-600">
+              {availability.busy.map((slot) => <li key={`${slot.start}-${slot.end}`}>{formatDateTime(slot.start)} to {formatDateTime(slot.end)} ({slot.status})</li>)}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
 
       {message ? <Alert tone="success">{message}</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}

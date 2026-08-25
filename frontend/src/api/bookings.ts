@@ -58,6 +58,17 @@ export async function getBooking(id: string): Promise<BookingDetail> {
   return apiRequest(`/api/bookings/${id}`);
 }
 
+export async function getRoomAvailability(roomId: string, start: string, end: string): Promise<{
+  roomId: string;
+  start: string;
+  end: string;
+  available: boolean;
+  busy: Array<{ start: string; end: string; status: string }>;
+}> {
+  const query = new URLSearchParams({ start, end });
+  return apiRequest(`/api/rooms/${roomId}/availability?${query.toString()}`);
+}
+
 export async function beginCheckout(bookingId: string): Promise<{
   booking: { id: string; status: string; holdExpiresAt: string; checkoutDeadline: string };
 }> {

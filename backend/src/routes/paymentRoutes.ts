@@ -6,7 +6,7 @@ import { PaymentProvider, localPaymentProvider } from '../services/paymentServic
 import { prisma } from '../config/prisma';
 import { reconciliationReport, venueReport } from '../controllers/reportController';
 import { cancelBooking } from '../services/cancellationService';
-import { requireAuthenticatedUser } from '../middleware/authorization';
+import { authorizeBookingAccess, requireAuthenticatedUser } from '../middleware/authorization';
 
 export function createPaymentRoutes(authDependencies?: AuthDependencies, paymentProvider?: PaymentProvider): Router {
   const router = Router();
@@ -21,7 +21,11 @@ export function createPaymentRoutes(authDependencies?: AuthDependencies, payment
       const user = requireAuthenticatedUser(request).user;
       const id = request.params.id;
       if (!user || typeof id !== 'string') throw Object.assign(new Error('Invalid cancellation request'), { statusCode: 400 });
-      const result = await cancelBooking(prisma, provider, id, user.id);
+      const booking = await prisma.booking.findUnique({ where: { id }, select: { userId: true, room: { select: { venueId: true } } } });
+      if (!booking) { response.status(404).json({ error: 'Booking not found' }); return; }
+      authorizeBookingAccess(request, { userId: booking.userId, venueId: booking.room.venueId });
+      const authorizedVenueId = booking.userId === user.id ? undefined : booking.room.venueId;
+      const result = await cancelBooking(prisma, provider, id, user.id, authorizedVenueId);
       response.json(result);
     } catch (error) { next(error); }
   });

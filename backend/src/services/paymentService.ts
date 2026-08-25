@@ -1,7 +1,7 @@
 import { BookingStatus, PaymentStatus, Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { transitionBookingInTransaction } from './bookingStateMachine';
-import { signPaygateBody } from './paygateService';
+import { createCharge, createRefund, signPaygateBody } from './paygateService';
 
 export interface PaymentProvider {
   charge(input: { idempotencyKey: string; amountMinor: number; currency: string; reference: string }): Promise<{ chargeId: string }>;
@@ -184,6 +184,10 @@ export async function processPersistedPaymentEvent(
 export function localPaymentProvider(database: PrismaClient): PaymentProvider {
   return {
     charge: async (input) => {
+      if (process.env.VERCEL) {
+        const charge = await createCharge(database, input);
+        return { chargeId: charge.chargeId };
+      }
       const baseUrl = process.env.PAYGATE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://127.0.0.1:${process.env.PORT || 3000}`);
       const body = JSON.stringify({ amount_minor: input.amountMinor, currency: input.currency, reference: input.reference });
       const response = await fetch(`${baseUrl}/paygate/charges`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, 'x-paygate-signature': signPaygateBody(body) }, body });
@@ -192,6 +196,10 @@ export function localPaymentProvider(database: PrismaClient): PaymentProvider {
       return { chargeId: responseBody.charge_id };
     },
     refund: async (input) => {
+      if (process.env.VERCEL) {
+        const refund = await createRefund(database, input);
+        return { refundId: refund.refundId };
+      }
       const baseUrl = process.env.PAYGATE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
       const body = JSON.stringify({ charge_id: input.chargeId, amount_minor: input.amountMinor });
       const response = await fetch(`${baseUrl}/paygate/refunds`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, 'x-paygate-signature': signPaygateBody(body) }, body });

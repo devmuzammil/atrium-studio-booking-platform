@@ -15,7 +15,6 @@ export function navForRole(role: UserRole | null): NavItem[] {
     case 'VENUE_STAFF':
       return [
         { to: '/bookings', label: 'Venue Bookings' },
-        { to: '/reports', label: 'Reports' },
       ];
     case 'VENUE_ADMIN':
       return [

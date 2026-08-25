@@ -51,7 +51,6 @@ export function LoginPage() {
 
         <form onSubmit={onSubmit} className="rounded-3xl border border-[#d9d2c5] bg-white/80 p-8 shadow-sm backdrop-blur">
           <h2 className="text-2xl font-semibold text-slate-900">Sign in</h2>
-          <p className="mt-1 text-sm text-slate-600">Use a seeded demo account to review Tier 1 flows.</p>
 
           {error ? (
             <div className="mt-4">

@@ -68,11 +68,15 @@ async function deliverWebhook(database: PrismaClient, chargeId: string, referenc
   };
 
   if (chance(5)) {
-    setTimeout(() => void send(), 60000 + Math.floor(Math.random() * 30000));
+    if (process.env.VERCEL) {
+      await send();
+    } else {
+      setTimeout(() => void send(), 60000 + Math.floor(Math.random() * 30000));
+    }
   } else {
-    void send();
+    await send();
   }
-  if (chance(30)) void send();
+  if (chance(30)) await send();
 }
 
 export async function createCharge(database: PrismaClient, input: PaygateChargeInput) {
@@ -92,7 +96,11 @@ export async function createCharge(database: PrismaClient, input: PaygateChargeI
       },
     });
     await database.paygateCharge.update({ where: { chargeId: charge.chargeId }, data: { status: PaygateChargeStatus.SUCCEEDED } });
-    void deliverWebhook(database, charge.chargeId, input.reference, input.amountMinor, input.currency);
+    if (process.env.VERCEL) {
+      await deliverWebhook(database, charge.chargeId, input.reference, input.amountMinor, input.currency);
+    } else {
+      void deliverWebhook(database, charge.chargeId, input.reference, input.amountMinor, input.currency);
+    }
     return charge;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

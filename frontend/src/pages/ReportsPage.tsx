@@ -84,7 +84,7 @@ export function ReportsPage() {
           <p className="mt-1 text-sm text-slate-600">Captured charges: {reconciliation.capturedCharges}</p>
           {reconciliation.discrepancies.length === 0 ? (
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
-              Zero discrepancies. INV-5 looks clean for the current query.
+              No payment reconciliation issues found for the selected criteria.
             </div>
           ) : (
             <div className="mt-4 space-y-2">

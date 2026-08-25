@@ -87,7 +87,7 @@ benchmarking.
 | `/checkout/:bookingId` | Checkout and Paygate payment |
 | `/bookings` | Booking list |
 | `/bookings/:id` | Booking detail and cancellation |
-| `/reports` | Reconciliation and revenue |
+| `/reports` | Reconciliation and revenue; a clear message confirms when no payment issues are found for the selected criteria |
 | `/admin` | Identity and cancellation policy editor |
 | `/health` | API dependency health |
 

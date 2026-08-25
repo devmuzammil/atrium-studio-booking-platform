@@ -96,9 +96,7 @@ export async function createCharge(database: PrismaClient, input: PaygateChargeI
       },
     });
     await database.paygateCharge.update({ where: { chargeId: charge.chargeId }, data: { status: PaygateChargeStatus.SUCCEEDED } });
-    if (process.env.VERCEL) {
-      await deliverWebhook(database, charge.chargeId, input.reference, input.amountMinor, input.currency);
-    } else {
+    if (!process.env.VERCEL) {
       void deliverWebhook(database, charge.chargeId, input.reference, input.amountMinor, input.currency);
     }
     return charge;

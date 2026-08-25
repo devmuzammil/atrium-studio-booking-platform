@@ -50,7 +50,19 @@ export async function startPayment(database: PrismaClient, provider: PaymentProv
       currency: payment.currency,
       reference: bookingId,
     });
-    return database.payment.update({ where: { id: payment.id }, data: { providerChargeId: charge.chargeId } });
+    const updatedPayment = await database.payment.update({ where: { id: payment.id }, data: { providerChargeId: charge.chargeId } });
+    if (process.env.VERCEL) {
+      await processPaymentWebhook(database, {
+        deliveryId: randomUUID(),
+        chargeId: charge.chargeId,
+        reference: bookingId,
+        event: 'charge.succeeded',
+        amountMinor: payment.amountMinor,
+        currency: payment.currency,
+        occurredAt: new Date(),
+      }, provider);
+    }
+    return updatedPayment;
   } catch (error) {
     throw error;
   }

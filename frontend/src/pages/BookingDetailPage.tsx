@@ -73,7 +73,7 @@ export function BookingDetailPage() {
   if (loading) return <LoadingSpinner label="Loading booking…" />;
   if (!booking) return <Alert tone="danger">{error || 'Booking not found'}</Alert>;
 
-  const canCancel = booking.status === 'CONFIRMED' && user?.id === booking.userId;
+  const canCancel = ['HELD', 'PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status) && user?.id === booking.userId;
   const canCheckout = user?.id === booking.userId;
 
   return (

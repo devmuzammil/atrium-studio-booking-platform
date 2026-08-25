@@ -46,7 +46,9 @@ export async function cancelBooking(
       select: { id: true, userId: true, roomId: true, status: true, amountMinor: true, currency: true, pricingSnapshot: true, policySnapshot: true },
     });
     if (!booking || booking.userId !== actorId) throw new CancellationError('Booking is not accessible');
-    if (booking.status !== BookingStatus.CONFIRMED) throw new CancellationError('Only confirmed bookings can be cancelled');
+    if (!([BookingStatus.HELD, BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED] as BookingStatus[]).includes(booking.status)) {
+      throw new CancellationError('This booking can no longer be cancelled');
+    }
 
     const interval = await transaction.$queryRaw<Array<{ start: Date; end: Date }>>(Prisma.sql`SELECT lower(slot) AS start, upper(slot) AS end FROM bookings WHERE id = ${bookingId}::uuid`);
     const room = await transaction.room.findUnique({ where: { id: booking.roomId }, select: { venueId: true, hourlyRateMinor: true } });
@@ -67,7 +69,7 @@ export async function cancelBooking(
     await transitionBookingInTransaction(transaction, { bookingId, to: BookingStatus.CANCELLED, actorId, reason: 'customer cancellation' });
 
     const payment = await transaction.payment.findUnique({ where: { bookingId }, select: { id: true, providerChargeId: true, amountMinor: true, status: true } });
-    if (!payment || payment.status !== PaymentStatus.SUCCEEDED || !payment.providerChargeId || refundAmountMinor === 0) {
+    if (!payment || !([PaymentStatus.PROCESSING, PaymentStatus.SUCCEEDED] as PaymentStatus[]).includes(payment.status) || !payment.providerChargeId || refundAmountMinor === 0) {
       return { bookingId, status: BookingStatus.CANCELLED, refundAmountMinor };
     }
     const refundKey = `refund:cancel:${bookingId}:${refundAmountMinor}`;

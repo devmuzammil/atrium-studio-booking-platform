@@ -121,7 +121,7 @@ async function processPaymentWebhookOnce(
         await transitionBookingInTransaction(transaction, { bookingId: booking.id, to: BookingStatus.CONFIRMED, reason: 'payment succeeded' });
         return { status: 'confirmed' };
       }
-      if (booking.status === BookingStatus.EXPIRED || booking.status === BookingStatus.FAILED || !booking.holdExpiresAt || booking.holdExpiresAt <= new Date()) {
+      if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.EXPIRED || booking.status === BookingStatus.FAILED || !booking.holdExpiresAt || booking.holdExpiresAt <= new Date()) {
         await transaction.refund.create({ data: { bookingId: booking.id, paymentId: payment.id, idempotencyKey: `refund:${payment.id}`, amountMinor: payment.amountMinor, currency: payment.currency, status: PaymentStatus.PROCESSING } });
         if (booking.status === BookingStatus.PENDING_PAYMENT) {
           await transitionBookingInTransaction(transaction, { bookingId: booking.id, to: BookingStatus.EXPIRED, reason: 'payment completed after hold expiry' });

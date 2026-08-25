@@ -46,7 +46,12 @@ export async function searchAvailableRooms(
     conditions.push(Prisma.sql`r.capacity >= ${filters.minCapacity}`);
   }
   if (filters.amenities && filters.amenities.length > 0) {
-    conditions.push(Prisma.sql`r.amenities @> ${JSON.stringify(filters.amenities)}::jsonb`);
+    const normalizedAmenities = filters.amenities.map((amenity) => amenity.toLocaleLowerCase());
+    conditions.push(Prisma.sql`(
+      SELECT COUNT(*)
+      FROM jsonb_array_elements_text(r.amenities) AS room_amenity
+      WHERE LOWER(room_amenity) IN (${Prisma.join(normalizedAmenities)})
+    ) = ${normalizedAmenities.length}`);
   }
   if (filters.maxPrice !== undefined) {
     conditions.push(Prisma.sql`r.hourly_rate_minor <= ${filters.maxPrice}`);

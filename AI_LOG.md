@@ -179,6 +179,20 @@
 - Chosen definition: booked room minutes divided by total room capacity in the requested time window. This was recorded in `KNOWN_ISSUES.md`; `ARCHITECTURE.md` was not changed.
 - Added direct-ID cross-venue revenue-report authorization coverage and exposed utilisation in the existing reports UI.
 
+## Final Reviewer Fixes
+
+- Reported issue: searching with an amenity term could return no rooms because
+  JSON containment was case-sensitive. Changed the database search predicate
+  to compare normalized amenity array values case-insensitively while retaining
+  the all-requested-amenities behavior.
+- Reported issue: customers could cancel from booking detail but had no cancel
+  action in the booking list. Added a customer-only list action that calls the
+  existing server-authorized cancellation endpoint and refreshes the list.
+- Reported issue: seeded venues displayed only three generic equipment types.
+  Replaced the generated labels with a ten-item named equipment catalog per
+  venue and distributed the same required unit totals across it; demo remains
+  200 units and full remains 2,500 units.
+
 ## Tier 2 verification and seed profiles
 
 - Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.

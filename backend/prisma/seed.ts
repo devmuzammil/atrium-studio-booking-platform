@@ -11,6 +11,18 @@ const profiles = {
 type ProfileName = keyof typeof profiles;
 
 const DEMO_PASSWORD = 'Password123!';
+const equipmentCatalog = [
+  'Camera Bodies',
+  'Cinema Lenses',
+  'LED Light Kits',
+  'Tripods',
+  'Wireless Microphones',
+  'Audio Recorders',
+  'Studio Monitors',
+  'Light Modifiers',
+  'C-Stands',
+  'Green Screens',
+];
 
 function chunk<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -129,14 +141,14 @@ async function main(): Promise<void> {
 
   for (let venueIndex = 0; venueIndex < venueIds.length; venueIndex += 1) {
     const equipmentAtVenue = distribute(profile.equipment, profile.venues, venueIndex);
-    const equipmentTypeCount = Math.max(2, Math.ceil(equipmentAtVenue / 10));
+    const equipmentTypeCount = Math.min(equipmentCatalog.length, equipmentAtVenue);
     await prisma.equipmentType.createMany({ data: Array.from({ length: equipmentTypeCount }, (_, equipmentIndex) => ({
       id: randomUUID(),
       venueId: venueIds[venueIndex],
-      name: `Equipment ${venueIndex + 1}-${equipmentIndex + 1}`,
+      name: equipmentCatalog[equipmentIndex],
       hourlyRateMinor: 1000 + equipmentIndex * 100,
       currency: 'PKR',
-      totalUnits: equipmentIndex === 0 ? 3 : distribute(equipmentAtVenue - 3, equipmentTypeCount - 1, equipmentIndex - 1),
+      totalUnits: distribute(equipmentAtVenue, equipmentTypeCount, equipmentIndex),
       overbookingPercent: 0,
     })) });
   }

@@ -37,6 +37,7 @@ export async function searchAvailableRooms(
           '[)'
         )
     )`,
+      Prisma.sql`r.deleted_at IS NULL`,
   ];
 
   if (filters.city) {

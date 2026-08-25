@@ -169,6 +169,15 @@ describe('room availability and cross-venue search', () => {
     expect(response.body.rooms.map((room: { id: string }) => room.id).sort()).toEqual([roomBId, roomAId].sort());
   });
 
+  it('does not return a soft-deleted room', async () => {
+    await prisma.room.update({ where: { id: roomAId }, data: { deletedAt: new Date() } });
+
+    const response = await search();
+
+    expect(response.status).toBe(200);
+    expect(response.body.rooms.map((room: { id: string }) => room.id)).toEqual([roomBId]);
+  });
+
   it.each(activeStatuses)('excludes a %s overlapping booking', async (status) => {
     await createBooking(status);
 

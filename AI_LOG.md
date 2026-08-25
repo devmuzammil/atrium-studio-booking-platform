@@ -205,6 +205,14 @@
   administrator can inspect and manage every venue's scoped configuration,
   rooms, equipment, staff, and policy.
 
+## Button Text Visibility Follow-up
+
+- Reported issue: labels on multiple primary buttons, including `Continue to
+  payment`, were not visible despite the labels being present in the markup.
+  Added a global stylesheet rule that makes the existing `text-white` utility
+  authoritative against conflicting color rules, covering all affected action
+  buttons without changing their behavior.
+
 ## Tier 2 verification and seed profiles
 
 - Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.

@@ -43,3 +43,7 @@ select,
 textarea {
   font: inherit;
 }
+
+.text-white {
+  color: #ffffff !important;
+}

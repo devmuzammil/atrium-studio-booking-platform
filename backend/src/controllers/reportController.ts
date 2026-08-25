@@ -15,7 +15,7 @@ function requestedVenue(request: Request): string | undefined {
 function authorizeReport(request: Request, venueId: string | undefined): void {
   const authenticated = requireAuthenticatedUser(request);
   if (hasGlobalRole(authenticated, UserRole.PLATFORM_ADMIN)) return;
-  if (!venueId || !hasVenueRole(authenticated, venueId, [UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN])) {
+  if (!venueId || !hasVenueRole(authenticated, venueId, [UserRole.VENUE_ADMIN])) {
     throw Object.assign(new Error('Report access denied'), { statusCode: 403 });
   }
 }

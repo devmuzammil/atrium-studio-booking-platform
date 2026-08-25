@@ -88,8 +88,7 @@ export function requireAuthenticatedUser(request: Request): AuthenticatedRequest
 
 export function authorizeHoldCreation(request: AuthenticatedRequest, venueId: string): void {
   if (hasGlobalRole(request, UserRole.PLATFORM_ADMIN)
-    || hasGlobalRole(request, UserRole.CUSTOMER)
-    || hasVenueRole(request, venueId, [UserRole.VENUE_STAFF, UserRole.VENUE_ADMIN])) {
+    || (hasGlobalRole(request, UserRole.CUSTOMER) && venueId.length > 0)) {
     return;
   }
 

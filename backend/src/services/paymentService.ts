@@ -19,7 +19,7 @@ export async function startPayment(database: PrismaClient, provider: PaymentProv
       where: { id: bookingId },
       select: { id: true, userId: true, status: true, amountMinor: true, currency: true, holdExpiresAt: true },
     });
-    if (!booking) throw new PaymentConflictError('Booking is not accessible');
+    if (!booking || booking.userId !== actorId) throw new PaymentConflictError('Booking is not accessible');
 
     const existing = await transaction.payment.findUnique({ where: { bookingId } });
     if (existing) {

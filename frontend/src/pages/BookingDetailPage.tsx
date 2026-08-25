@@ -74,6 +74,7 @@ export function BookingDetailPage() {
   if (!booking) return <Alert tone="danger">{error || 'Booking not found'}</Alert>;
 
   const canCancel = booking.status === 'CONFIRMED' && user?.id === booking.userId;
+  const canCheckout = user?.id === booking.userId;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -124,7 +125,7 @@ export function BookingDetailPage() {
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       <div className="flex flex-wrap gap-3">
-        {booking.status === 'HELD' || booking.status === 'PENDING_PAYMENT' ? (
+        {canCheckout && (booking.status === 'HELD' || booking.status === 'PENDING_PAYMENT') ? (
           <Link to={`/checkout/${booking.id}`} className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white">
             Continue to payment
           </Link>

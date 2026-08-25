@@ -6,6 +6,7 @@ import type { BookingDetail } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { Alert, LoadingSpinner } from '../components/ui';
 import { formatDateTime, formatMoney, friendlyApiMessage } from '../utils/format';
+import { useAuth } from '../auth/AuthContext';
 
 function useCountdown(target: string | null | undefined): number {
   const [remainingMs, setRemainingMs] = useState(0);
@@ -24,6 +25,7 @@ function useCountdown(target: string | null | undefined): number {
 
 export function CheckoutPage() {
   const { bookingId } = useParams();
+  const { user } = useAuth();
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
@@ -76,7 +78,7 @@ export function CheckoutPage() {
     return remainingMs === 0;
   }, [booking, remainingMs]);
 
-  const canPay = booking?.status === 'HELD' && !holdExpired && !paying;
+  const canPay = booking?.status === 'HELD' && booking.userId === user?.id && !holdExpired && !paying;
 
   async function onPay(): Promise<void> {
     if (!bookingId || !canPay) return;

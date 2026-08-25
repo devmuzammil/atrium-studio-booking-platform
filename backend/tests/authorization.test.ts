@@ -262,14 +262,14 @@ describe('JWT authentication and tenant authorization', () => {
     expect(response.body).not.toHaveProperty('venues');
   });
 
-  it('allows venue staff to read their own venue revenue report', async () => {
+  it('denies venue staff access to venue revenue reports', async () => {
     jest.spyOn(prisma, '$queryRaw').mockResolvedValue([] as never);
     const response = await request(app)
       .get(`/api/reports/revenue?venueId=${venueAId}&start=2026-08-01T00:00:00.000Z&end=2026-09-01T00:00:00.000Z`)
       .set('Authorization', `Bearer ${tokenFor(venueStaffAId)}`);
 
-    expect(response.status).toBe(200);
-    expect(response.body.venues).toEqual([]);
+    expect(response.status).toBe(403);
+    expect(response.body).not.toHaveProperty('venues');
   });
 
   it('allows a platform admin to read a cross-venue revenue report', async () => {

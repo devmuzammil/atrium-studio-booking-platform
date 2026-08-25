@@ -33,13 +33,19 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomeRedirect />} />
-          <Route path="/search" element={<SearchPage />} />
+          <Route path="/search" element={<ProtectedRoute roles={['CUSTOMER', 'VENUE_ADMIN', 'PLATFORM_ADMIN']} />}>
+            <Route index element={<SearchPage />} />
+          </Route>
           <Route path="/book/:roomId" element={<BookPage />} />
           <Route path="/checkout/:bookingId" element={<CheckoutPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/:bookingId" element={<BookingDetailPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/reports" element={<ProtectedRoute roles={['VENUE_ADMIN', 'PLATFORM_ADMIN']} />}>
+            <Route index element={<ReportsPage />} />
+          </Route>
+          <Route path="/admin" element={<ProtectedRoute roles={['VENUE_ADMIN', 'PLATFORM_ADMIN']} />}>
+            <Route index element={<AdminPage />} />
+          </Route>
           <Route path="/health" element={<HealthPage />} />
         </Route>
       </Route>

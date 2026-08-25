@@ -131,15 +131,15 @@ export function CheckoutPage() {
       </section>
 
       {booking.status === 'HELD' || booking.status === 'PENDING_PAYMENT' ? (
-        <Alert tone={holdExpired ? 'warning' : 'info'} title={holdExpired ? 'Hold expired' : 'Hold timer (informational)'}>
+        <Alert tone={holdExpired ? 'warning' : 'info'} title={holdExpired ? 'Hold expired' : 'Your room is reserved'}>
           {holdExpired ? (
             <p>
               This hold is no longer payable. <Link className="underline" to="/search">Search again</Link>.
             </p>
           ) : (
             <p>
-              About {minutes}:{String(seconds).padStart(2, '0')} remaining until the backend hold expiry
-              {booking.holdExpiresAt ? ` (${formatDateTime(booking.holdExpiresAt)})` : ''}. The API decides validity.
+              You have {minutes}:{String(seconds).padStart(2, '0')} to complete payment
+              {booking.holdExpiresAt ? ` (until ${formatDateTime(booking.holdExpiresAt)})` : ''}.
             </p>
           )}
         </Alert>
@@ -147,7 +147,7 @@ export function CheckoutPage() {
 
       {booking.status === 'PENDING_PAYMENT' ? (
         <Alert tone="info" title="Payment processing">
-          Waiting for Paygate webhook confirmation. This page refreshes booking status automatically.
+          Your payment is being confirmed. This page will update automatically.
         </Alert>
       ) : null}
 

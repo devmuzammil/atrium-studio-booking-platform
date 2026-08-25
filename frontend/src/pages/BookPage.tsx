@@ -172,7 +172,7 @@ export function BookPage() {
           <p>Room: {formatMoney(roomAmount, room.currency)}</p>
           <p>Equipment: {formatMoney(equipmentAmount, room.currency)}</p>
           <p className="mt-1 text-base font-semibold text-slate-900">Estimated total: {formatMoney(total, room.currency)}</p>
-          <p className="mt-1 text-xs text-slate-500">Final amount is calculated by the backend when the hold is created.</p>
+          <p className="mt-1 text-xs text-slate-500">Your final total will be confirmed when you place the hold.</p>
         </section>
 
         {error ? (

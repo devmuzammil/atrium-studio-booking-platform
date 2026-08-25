@@ -11,7 +11,7 @@ export interface PaymentProvider {
 export class PaymentValidationError extends Error { readonly statusCode = 400; }
 export class PaymentConflictError extends Error { readonly statusCode = 409; }
 
-export async function startPayment(database: PrismaClient, provider: PaymentProvider, userId: string, bookingId: string, idempotencyKey: string) {
+export async function startPayment(database: PrismaClient, provider: PaymentProvider, actorId: string, bookingId: string, idempotencyKey: string) {
   if (!idempotencyKey.trim()) throw new PaymentValidationError('Idempotency-Key is required');
 
   const payment = await database.$transaction(async (transaction) => {
@@ -19,7 +19,7 @@ export async function startPayment(database: PrismaClient, provider: PaymentProv
       where: { id: bookingId },
       select: { id: true, userId: true, status: true, amountMinor: true, currency: true, holdExpiresAt: true },
     });
-    if (!booking || booking.userId !== userId) throw new PaymentConflictError('Booking is not accessible');
+    if (!booking) throw new PaymentConflictError('Booking is not accessible');
 
     const existing = await transaction.payment.findUnique({ where: { bookingId } });
     if (existing) {
@@ -33,7 +33,7 @@ export async function startPayment(database: PrismaClient, provider: PaymentProv
     await transitionBookingInTransaction(transaction, {
       bookingId,
       to: BookingStatus.PENDING_PAYMENT,
-      actorId: userId,
+      actorId,
       reason: 'payment submitted',
     });
     return transaction.payment.create({

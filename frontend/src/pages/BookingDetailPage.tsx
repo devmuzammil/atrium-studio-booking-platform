@@ -126,7 +126,7 @@ export function BookingDetailPage() {
       <div className="flex flex-wrap gap-3">
         {booking.status === 'HELD' || booking.status === 'PENDING_PAYMENT' ? (
           <Link to={`/checkout/${booking.id}`} className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white">
-            Go to checkout
+            Continue to payment
           </Link>
         ) : null}
         {canCancel ? (

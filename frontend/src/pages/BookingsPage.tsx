@@ -43,7 +43,7 @@ export function BookingsPage() {
         <h2 className="text-3xl font-semibold text-slate-900">
           {primaryRole === 'CUSTOMER' ? 'My Bookings' : 'Bookings'}
         </h2>
-        <p className="mt-1 text-slate-600">Statuses and payment outcomes come from the API.</p>
+        <p className="mt-1 text-slate-600">Review your reservations, payment status, and upcoming studio sessions.</p>
       </header>
 
       {error ? <Alert tone="danger">{error}</Alert> : null}

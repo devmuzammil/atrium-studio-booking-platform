@@ -20,6 +20,13 @@ import {
   listVenueStaff,
   addVenueStaff,
   removeVenueStaff,
+  listPlatformVenues,
+  createPlatformVenue,
+  updatePlatformVenue,
+  deletePlatformVenue,
+  listPlatformUsers,
+  createPlatformUser,
+  replacePlatformUserRoles,
 } from '../controllers/resourceController';
 import { searchRooms } from '../controllers/roomSearchController';
 import { authenticate, AuthDependencies } from '../middleware/auth';
@@ -37,6 +44,13 @@ export function createResourceRoutes(authDependencies?: AuthDependencies): Route
   router.get('/venues/:venueId/staff', listVenueStaff);
   router.post('/venues/:venueId/staff', addVenueStaff);
   router.delete('/venues/:venueId/staff/:id', removeVenueStaff);
+  router.get('/platform/venues', listPlatformVenues);
+  router.post('/platform/venues', createPlatformVenue);
+  router.patch('/platform/venues/:id', updatePlatformVenue);
+  router.delete('/platform/venues/:id', deletePlatformVenue);
+  router.get('/platform/users', listPlatformUsers);
+  router.post('/platform/users', createPlatformUser);
+  router.put('/platform/users/:id/roles', replacePlatformUserRoles);
   router.post('/bookings/holds', createHold);
   router.post('/bookings/:id/checkout', startCheckout);
   router.get('/bookings', listBookings);

@@ -144,6 +144,29 @@ export async function removeVenueStaff(venueId: string, userId: string): Promise
   return apiRequest(`/api/venues/${venueId}/staff/${userId}`, { method: 'DELETE' });
 }
 
+export interface ManagedVenue {
+  id: string;
+  name: string;
+  city: string;
+  timezone: string;
+  operatingSchedule: unknown;
+}
+
+export async function listPlatformVenues(): Promise<{ venues: ManagedVenue[] }> { return apiRequest('/api/platform/venues'); }
+export async function createPlatformVenue(input: Omit<ManagedVenue, 'id'>): Promise<{ venue: ManagedVenue }> { return apiRequest('/api/platform/venues', { method: 'POST', body: JSON.stringify(input) }); }
+export async function updatePlatformVenue(id: string, input: Partial<Omit<ManagedVenue, 'id'>>): Promise<{ venue: ManagedVenue }> { return apiRequest(`/api/platform/venues/${id}`, { method: 'PATCH', body: JSON.stringify(input) }); }
+export async function deletePlatformVenue(id: string): Promise<void> { return apiRequest(`/api/platform/venues/${id}`, { method: 'DELETE' }); }
+
+export interface ManagedUser {
+  id: string;
+  email: string;
+  roles: Array<{ role: string; venueId: string }>;
+}
+
+export async function listPlatformUsers(): Promise<{ users: ManagedUser[] }> { return apiRequest('/api/platform/users'); }
+export async function createPlatformUser(input: { email: string; password: string; role: string; venueId: string }): Promise<{ user: ManagedUser }> { return apiRequest('/api/platform/users', { method: 'POST', body: JSON.stringify(input) }); }
+export async function replacePlatformUserRoles(id: string, roles: Array<{ role: string; venueId: string }>): Promise<{ user: ManagedUser }> { return apiRequest(`/api/platform/users/${id}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) }); }
+
 export async function getHealth(): Promise<{
   status: string;
   dependencies: Record<string, string>;

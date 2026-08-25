@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { addVenueStaff, getVenueConfiguration, getVenuePolicy, listVenueStaff, removeVenueStaff, updateVenueConfiguration, updateVenuePolicy } from '../api/bookings';
+import { addVenueStaff, createPlatformUser, createPlatformVenue, deletePlatformVenue, getVenueConfiguration, getVenuePolicy, listPlatformUsers, listPlatformVenues, listVenueStaff, removeVenueStaff, replacePlatformUserRoles, updatePlatformVenue, updateVenueConfiguration, updateVenuePolicy } from '../api/bookings';
 import { ApiError } from '../api/client';
 import { Alert } from '../components/ui';
 
@@ -31,6 +31,11 @@ export function AdminPage() {
   const [staff, setStaff] = useState<Array<{ userId: string; email: string }>>([]);
   const [staffEmail, setStaffEmail] = useState('');
   const [savingVenue, setSavingVenue] = useState(false);
+  const [platformVenues, setPlatformVenues] = useState<Array<{ id: string; name: string; city: string; timezone: string; operatingSchedule: unknown }>>([]);
+  const [platformUsers, setPlatformUsers] = useState<Array<{ id: string; email: string; roles: Array<{ role: string; venueId: string }> }>>([]);
+  const [newPlatformVenue, setNewPlatformVenue] = useState({ name: '', city: '', timezone: 'UTC', operatingSchedule: '{}' });
+  const [newPlatformUser, setNewPlatformUser] = useState({ email: '', password: '', role: 'CUSTOMER', venueId: '' });
+  const [roleEdit, setRoleEdit] = useState({ userId: '', role: 'VENUE_STAFF', venueId: '' });
 
   useEffect(() => {
     if (!venueId || !canEditPolicy) return;
@@ -52,6 +57,17 @@ export function AdminPage() {
         setError(err instanceof ApiError ? err.message : 'Unable to load policy');
       });
   }, [venueId, canEditPolicy]);
+
+  useEffect(() => {
+    if (primaryRole !== 'PLATFORM_ADMIN') return;
+    void Promise.all([listPlatformVenues(), listPlatformUsers()])
+      .then(([venuesResult, usersResult]) => {
+        setPlatformVenues(venuesResult.venues);
+        setPlatformUsers(usersResult.users);
+        if (!newPlatformUser.venueId && venuesResult.venues[0]) setNewPlatformUser((current) => ({ ...current, venueId: venuesResult.venues[0].id }));
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load platform administration'));
+  }, [primaryRole]);
 
   async function onSave(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -102,6 +118,50 @@ export function AdminPage() {
     } catch (err) { setError(err instanceof ApiError ? err.message : 'Staff member could not be removed'); }
   }
 
+  async function createVenue(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    try {
+      const result = await createPlatformVenue({ ...newPlatformVenue, operatingSchedule: JSON.parse(newPlatformVenue.operatingSchedule) });
+      setPlatformVenues((current) => [...current, result.venue]);
+      setNewPlatformVenue({ name: '', city: '', timezone: 'UTC', operatingSchedule: '{}' });
+      setMessage('Venue created.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Venue could not be created. Check the schedule JSON.'); }
+  }
+
+  async function savePlatformVenue(venue: (typeof platformVenues)[number]): Promise<void> {
+    try {
+      const result = await updatePlatformVenue(venue.id, { name: venue.name, city: venue.city, timezone: venue.timezone, operatingSchedule: venue.operatingSchedule });
+      setPlatformVenues((current) => current.map((item) => item.id === venue.id ? result.venue : item));
+      setMessage('Venue updated.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Venue could not be updated'); }
+  }
+
+  async function deleteVenue(id: string): Promise<void> {
+    if (!window.confirm('Delete this venue and its configuration?')) return;
+    try { await deletePlatformVenue(id); setPlatformVenues((current) => current.filter((venue) => venue.id !== id)); setMessage('Venue deleted.'); }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Venue could not be deleted'); }
+  }
+
+  async function createUser(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    try {
+      const result = await createPlatformUser(newPlatformUser);
+      setPlatformUsers((current) => [...current, result.user]);
+      setNewPlatformUser((current) => ({ ...current, email: '', password: '' }));
+      setMessage('User created.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'User could not be created'); }
+  }
+
+  async function saveUserRole(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!roleEdit.userId || !roleEdit.venueId) return;
+    try {
+      const result = await replacePlatformUserRoles(roleEdit.userId, [{ role: roleEdit.role, venueId: roleEdit.venueId }]);
+      setPlatformUsers((current) => current.map((user) => user.id === result.user.id ? result.user : user));
+      setMessage('User role updated.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'User role could not be updated'); }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
@@ -140,6 +200,26 @@ export function AdminPage() {
           </label>
           <button type="submit" disabled={savingVenue} className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">{savingVenue ? 'Saving…' : 'Save venue settings'}</button>
         </form>
+      ) : null}
+
+      {primaryRole === 'PLATFORM_ADMIN' ? (
+        <>
+          <section className="space-y-3 rounded-2xl border border-[#d9d2c5] bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold">All venues</h3>
+            <form onSubmit={createVenue} className="grid gap-2 sm:grid-cols-4">
+              {(['name', 'city', 'timezone'] as const).map((field) => <input key={field} className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder={field} value={newPlatformVenue[field]} onChange={(event) => setNewPlatformVenue({ ...newPlatformVenue, [field]: event.target.value })} required />)}
+              <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="schedule JSON" value={newPlatformVenue.operatingSchedule} onChange={(event) => setNewPlatformVenue({ ...newPlatformVenue, operatingSchedule: event.target.value })} required />
+              <button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-4">Create venue</button>
+            </form>
+            <div className="space-y-3">{platformVenues.map((item) => <div key={item.id} className="grid gap-2 border-t border-[#ece7de] pt-3 sm:grid-cols-4"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.name} onChange={(event) => setPlatformVenues((current) => current.map((venue) => venue.id === item.id ? { ...venue, name: event.target.value } : venue))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.city} onChange={(event) => setPlatformVenues((current) => current.map((venue) => venue.id === item.id ? { ...venue, city: event.target.value } : venue))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.timezone} onChange={(event) => setPlatformVenues((current) => current.map((venue) => venue.id === item.id ? { ...venue, timezone: event.target.value } : venue))} /><div className="flex gap-2"><button type="button" onClick={() => void savePlatformVenue(item)} className="text-sm text-[#c45c26] hover:underline">Save</button><button type="button" onClick={() => void deleteVenue(item.id)} className="text-sm text-rose-700 hover:underline">Delete</button></div></div>)}</div>
+          </section>
+          <section className="space-y-3 rounded-2xl border border-[#d9d2c5] bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold">User administration</h3>
+            <form onSubmit={createUser} className="grid gap-2 sm:grid-cols-4"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="email" placeholder="email" value={newPlatformUser.email} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, email: event.target.value })} required /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" type="password" placeholder="temporary password" value={newPlatformUser.password} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, password: event.target.value })} required /><select className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={newPlatformUser.role} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, role: event.target.value })}>{['CUSTOMER', 'VENUE_STAFF', 'VENUE_ADMIN', 'PLATFORM_ADMIN'].map((role) => <option key={role}>{role}</option>)}</select><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="venue UUID" value={newPlatformUser.venueId} onChange={(event) => setNewPlatformUser({ ...newPlatformUser, venueId: event.target.value })} required /><button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-4">Create user</button></form>
+            <form onSubmit={saveUserRole} className="grid gap-2 border-t border-[#ece7de] pt-3 sm:grid-cols-3"><select className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={roleEdit.userId} onChange={(event) => setRoleEdit({ ...roleEdit, userId: event.target.value })}><option value="">Select user</option>{platformUsers.map((item) => <option key={item.id} value={item.id}>{item.email}</option>)}</select><select className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={roleEdit.role} onChange={(event) => setRoleEdit({ ...roleEdit, role: event.target.value })}>{['CUSTOMER', 'VENUE_STAFF', 'VENUE_ADMIN', 'PLATFORM_ADMIN'].map((role) => <option key={role}>{role}</option>)}</select><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="venue UUID" value={roleEdit.venueId} onChange={(event) => setRoleEdit({ ...roleEdit, venueId: event.target.value })} required /><button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-3">Set user role</button></form>
+            <ul className="divide-y divide-[#ece7de]">{platformUsers.map((item) => <li key={item.id} className="py-2 text-sm"><span className="font-medium">{item.email}</span><span className="ml-2 text-slate-500">{item.roles.map((role) => `${role.role} (${role.venueId})`).join(', ') || 'No roles'}</span></li>)}</ul>
+          </section>
+        </>
       ) : null}
 
       {canEditPolicy && venueId ? (

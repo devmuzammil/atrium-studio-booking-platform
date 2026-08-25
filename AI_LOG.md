@@ -193,6 +193,18 @@
   venue and distributed the same required unit totals across it; demo remains
   200 units and full remains 2,500 units.
 
+## Platform Admin And Booking List Follow-up
+
+- Reported issue: the customer booking list did not expose cancellation and
+  booking results were not ordered by the newest booking creation time. Added
+  an ownership-based customer cancel action and changed the API ordering to
+  `created_at DESC` with an ID tie-breaker.
+- Reported issue: Platform Admin needed the complete platform view. The
+  backend already allowed all-venue bookings, reports, search, and platform
+  administration; the admin console now provides a venue selector so the
+  administrator can inspect and manage every venue's scoped configuration,
+  rooms, equipment, staff, and policy.
+
 ## Tier 2 verification and seed profiles
 
 - Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.

@@ -257,7 +257,7 @@ export async function listBookingsForUser(
     INNER JOIN venues v ON v.id = r.venue_id
     LEFT JOIN payments p ON p.booking_id = b.id
     ${whereClause}
-    ORDER BY lower(b.slot) DESC
+    ORDER BY b.created_at DESC, b.id DESC
     LIMIT 100
   `);
 }

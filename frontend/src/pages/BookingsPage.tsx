@@ -9,7 +9,7 @@ import { Alert, EmptyState, LoadingSpinner } from '../components/ui';
 import { formatDateTime, formatMoney } from '../utils/format';
 
 export function BookingsPage() {
-  const { primaryRole, venueIds } = useAuth();
+  const { primaryRole, user, venueIds } = useAuth();
   const [bookings, setBookings] = useState<BookingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +95,7 @@ export function BookingsPage() {
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-3">
                     <Link to={`/bookings/${booking.id}`} className="text-[#c45c26] hover:underline">Open</Link>
-                    {primaryRole === 'CUSTOMER' && ['HELD', 'PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status) ? (
+                    {booking.userId === user?.id && ['HELD', 'PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status) ? (
                       <button
                         type="button"
                         onClick={() => void onCancel(booking)}

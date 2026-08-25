@@ -20,7 +20,11 @@ const tierLabels: Array<{ key: keyof PolicyTiers; label: string }> = [
 
 export function AdminPage() {
   const { primaryRole, venueIds, user } = useAuth();
-  const venueId = venueIds[0] ?? '';
+  const [selectedVenueId, setSelectedVenueId] = useState('');
+  const [platformVenues, setPlatformVenues] = useState<Array<{ id: string; name: string; city: string; timezone: string; operatingSchedule: unknown }>>([]);
+  const venueId = primaryRole === 'PLATFORM_ADMIN'
+    ? (selectedVenueId || platformVenues[0]?.id || '')
+    : (venueIds[0] ?? '');
   const canEditPolicy = primaryRole === 'VENUE_ADMIN' || primaryRole === 'PLATFORM_ADMIN';
   const [tiers, setTiers] = useState<PolicyTiers>(defaultTiers);
   const [version, setVersion] = useState<number | null>(null);
@@ -31,7 +35,6 @@ export function AdminPage() {
   const [staff, setStaff] = useState<Array<{ userId: string; email: string }>>([]);
   const [staffEmail, setStaffEmail] = useState('');
   const [savingVenue, setSavingVenue] = useState(false);
-  const [platformVenues, setPlatformVenues] = useState<Array<{ id: string; name: string; city: string; timezone: string; operatingSchedule: unknown }>>([]);
   const [platformUsers, setPlatformUsers] = useState<Array<{ id: string; email: string; roles: Array<{ role: string; venueId: string }> }>>([]);
   const [newPlatformVenue, setNewPlatformVenue] = useState({ name: '', city: '', timezone: 'UTC', operatingSchedule: '{}' });
   const [newPlatformUser, setNewPlatformUser] = useState({ email: '', password: '', role: 'CUSTOMER', venueId: '' });
@@ -74,6 +77,7 @@ export function AdminPage() {
       .then(([venuesResult, usersResult]) => {
         setPlatformVenues(venuesResult.venues);
         setPlatformUsers(usersResult.users);
+        setSelectedVenueId((current) => current || venuesResult.venues[0]?.id || '');
         if (!newPlatformUser.venueId && venuesResult.venues[0]) setNewPlatformUser((current) => ({ ...current, venueId: venuesResult.venues[0].id }));
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load platform administration'));
@@ -227,6 +231,14 @@ export function AdminPage() {
           {primaryRole === 'PLATFORM_ADMIN' ? 'Platform overview' : 'Venue admin'}
         </h2>
         <p className="mt-1 text-slate-600">Manage cancellation policy for future bookings.</p>
+        {primaryRole === 'PLATFORM_ADMIN' && platformVenues.length > 0 ? (
+          <label className="mt-4 block max-w-xl text-sm font-medium text-slate-700">
+            Venue context
+            <select className="mt-1 w-full rounded-lg border border-[#d9d2c5] px-3 py-2" value={venueId} onChange={(event) => setSelectedVenueId(event.target.value)}>
+              {platformVenues.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.city}</option>)}
+            </select>
+          </label>
+        ) : null}
       </header>
 
       <section className="rounded-2xl border border-[#d9d2c5] bg-white p-5 shadow-sm">

@@ -129,6 +129,7 @@ model Room {
   overbookingPercent Int       @default(0) @map("overbooking_percent")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
   venue              Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
   bookings           Booking[]
 

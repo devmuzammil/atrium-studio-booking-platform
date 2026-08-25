@@ -58,7 +58,7 @@ export async function createHold(request: Request, response: Response, next: Nex
       equipment: parseEquipment(request.body?.equipment),
     };
 
-    const room = await prisma.room.findUnique({ where: { id: input.roomId }, select: { venueId: true } });
+    const room = await prisma.room.findFirst({ where: { id: input.roomId, deletedAt: null }, select: { venueId: true } });
     if (!room) {
       response.status(404).json({ error: 'Room not found' });
       return;

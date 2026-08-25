@@ -204,7 +204,7 @@ export async function updateManagedRoom(request: Request, response: Response, ne
   try {
     const authenticated = requireAuthenticatedUser(request);
     const roomId = getResourceId(request);
-    const room = await prisma.room.findUnique({ where: { id: roomId }, select: { venueId: true } });
+    const room = await prisma.room.findFirst({ where: { id: roomId, deletedAt: null }, select: { venueId: true } });
     authorizeVenueAdmin(authenticated, await managedResourceVenue(room));
     const updated = await updateRoom(prisma, roomId, body(request));
     response.json({ room: updated });
@@ -215,7 +215,7 @@ export async function deleteManagedRoom(request: Request, response: Response, ne
   try {
     const authenticated = requireAuthenticatedUser(request);
     const roomId = getResourceId(request);
-    const room = await prisma.room.findUnique({ where: { id: roomId }, select: { venueId: true } });
+    const room = await prisma.room.findFirst({ where: { id: roomId, deletedAt: null }, select: { venueId: true } });
     authorizeVenueAdmin(authenticated, await managedResourceVenue(room));
     await deleteRoom(prisma, roomId);
     response.status(204).end();
@@ -336,7 +336,7 @@ export async function getRoom(request: Request, response: Response, next: NextFu
     const authenticatedRequest = requireAuthenticatedUser(request);
     const roomId = getResourceId(request);
     const room = await prisma.room.findUnique({
-      where: { id: roomId },
+      where: { id: roomId, deletedAt: null },
       select: {
         id: true,
         venueId: true,
@@ -404,7 +404,7 @@ export async function getRoomAvailabilityWindow(request: Request, response: Resp
     const authenticatedRequest = requireAuthenticatedUser(request);
     const roomId = getResourceId(request);
     const room = await prisma.room.findUnique({
-      where: { id: roomId },
+      where: { id: roomId, deletedAt: null },
       select: { id: true, venueId: true },
     });
     if (!room) {

@@ -49,7 +49,7 @@ function ensureDurationBounds(minimum: number | undefined, maximum: number | und
 }
 
 export async function listRooms(database: PrismaClient, venueId: string) {
-  return database.room.findMany({ where: { venueId }, orderBy: { name: 'asc' } });
+  return database.room.findMany({ where: { venueId, deletedAt: null }, orderBy: { name: 'asc' } });
 }
 
 export async function createRoom(database: PrismaClient, input: Record<string, unknown>) {
@@ -125,7 +125,7 @@ export async function updateEquipment(database: PrismaClient, equipmentId: strin
 }
 
 export async function deleteRoom(database: PrismaClient, roomId: string): Promise<void> {
-  await database.room.delete({ where: { id: roomId } });
+  await database.room.update({ where: { id: roomId }, data: { deletedAt: new Date() } });
 }
 
 export async function deleteEquipment(database: PrismaClient, equipmentId: string): Promise<void> {

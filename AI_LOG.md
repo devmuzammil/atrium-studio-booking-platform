@@ -213,6 +213,15 @@
   authoritative against conflicting color rules, covering all affected action
   buttons without changing their behavior.
 
+## Final UI Cleanup Follow-up
+
+- Reported issue: the venue schedule editor exposed raw JSON in the frontend.
+  Replaced it with readable day and time-range lines while preserving the same
+  JSON schedule contract sent to the backend.
+- Reported issue: booking lists had an extra customer-only Cancel action while
+  other roles showed only Open. Removed the list action so all roles share the
+  same list format; cancellation remains available from booking detail.
+
 ## Tier 2 verification and seed profiles
 
 - Delegated to Copilot: verify report/reconciliation integration behavior and exact seed profile counts against a clean database.

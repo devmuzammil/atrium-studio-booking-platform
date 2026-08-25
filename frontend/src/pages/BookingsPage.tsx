@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { cancelBooking, listBookings } from '../api/bookings';
+import { listBookings } from '../api/bookings';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { BookingListItem } from '../types';
@@ -9,11 +9,10 @@ import { Alert, EmptyState, LoadingSpinner } from '../components/ui';
 import { formatDateTime, formatMoney } from '../utils/format';
 
 export function BookingsPage() {
-  const { primaryRole, user, venueIds } = useAuth();
+  const { primaryRole, venueIds } = useAuth();
   const [bookings, setBookings] = useState<BookingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const venueScoped = primaryRole === 'VENUE_ADMIN' || primaryRole === 'VENUE_STAFF';
 
   useEffect(() => {
@@ -37,21 +36,6 @@ export function BookingsPage() {
       cancelled = true;
     };
   }, [venueScoped, venueIds]);
-
-  async function onCancel(booking: BookingListItem): Promise<void> {
-    if (!window.confirm(`Cancel your booking for ${booking.roomName}?`)) return;
-    setCancellingId(booking.id);
-    setError(null);
-    try {
-      await cancelBooking(booking.id);
-      const result = await listBookings();
-      setBookings(result.bookings);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to cancel booking');
-    } finally {
-      setCancellingId(null);
-    }
-  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -93,19 +77,7 @@ export function BookingsPage() {
                 <td className="px-4 py-3 text-slate-700">{booking.paymentStatus ?? '—'}</td>
                 <td className="px-4 py-3 font-medium">{formatMoney(booking.amountMinor, booking.currency)}</td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-3">
-                    <Link to={`/bookings/${booking.id}`} className="text-[#c45c26] hover:underline">Open</Link>
-                    {booking.userId === user?.id && ['HELD', 'PENDING_PAYMENT', 'CONFIRMED'].includes(booking.status) ? (
-                      <button
-                        type="button"
-                        onClick={() => void onCancel(booking)}
-                        disabled={cancellingId === booking.id}
-                        className="text-rose-700 hover:underline disabled:opacity-60"
-                      >
-                        {cancellingId === booking.id ? 'Cancelling…' : 'Cancel'}
-                      </button>
-                    ) : null}
-                  </div>
+                  <Link to={`/bookings/${booking.id}`} className="text-[#c45c26] hover:underline">Open</Link>
                 </td>
               </tr>
             ))}

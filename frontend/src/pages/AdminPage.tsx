@@ -12,6 +12,41 @@ const defaultTiers = {
 
 type PolicyTiers = typeof defaultTiers;
 
+const scheduleDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function formatSchedule(value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const schedule = value as Record<string, unknown>;
+  return scheduleDays
+    .map((day) => {
+      const windows = schedule[day];
+      if (!Array.isArray(windows) || windows.length === 0) return null;
+      const ranges = windows.flatMap((window) => {
+        if (!window || typeof window !== 'object' || Array.isArray(window)) return [];
+        const range = window as Record<string, unknown>;
+        return typeof range.open === 'string' && typeof range.close === 'string'
+          ? [`${range.open}-${range.close}`]
+          : [];
+      });
+      return ranges.length > 0 ? `${day}: ${ranges.join(', ')}` : null;
+    })
+    .filter((line): line is string => line !== null)
+    .join('\n');
+}
+
+function parseSchedule(value: string): Record<string, Array<{ open: string; close: string }>> {
+  const schedule: Record<string, Array<{ open: string; close: string }>> = {};
+  for (const line of value.split('\n')) {
+    const match = /^([^:]+):\s*(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s*,\s*(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2}))*$/.exec(line.trim());
+    if (!match) continue;
+    const day = scheduleDays.find((item) => item.toLowerCase() === match[1].trim().toLowerCase());
+    if (!day) continue;
+    const ranges = line.slice(line.indexOf(':') + 1).split(',').map((range) => range.trim().split('-'));
+    schedule[day] = ranges.map(([open, close]) => ({ open, close }));
+  }
+  return schedule;
+}
+
 const tierLabels: Array<{ key: keyof PolicyTiers; label: string }> = [
   { key: 'moreThan48', label: 'More than 48 hours before start' },
   { key: 'between24And48', label: '24 to 48 hours before start' },
@@ -48,7 +83,7 @@ export function AdminPage() {
     if (!venueId || !canEditPolicy) return;
     void Promise.all([getVenueConfiguration(venueId), listVenueStaff(venueId)])
       .then(([configuration, staffResult]) => {
-        setVenue({ ...configuration.venue, operatingSchedule: JSON.stringify(configuration.venue.operatingSchedule, null, 2) });
+        setVenue({ ...configuration.venue, operatingSchedule: formatSchedule(configuration.venue.operatingSchedule) });
         setStaff(staffResult.staff);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Unable to load venue settings'));
@@ -105,8 +140,8 @@ export function AdminPage() {
     setSavingVenue(true);
     setError(null);
     try {
-      const result = await updateVenueConfiguration(venueId, { ...venue, operatingSchedule: JSON.parse(venue.operatingSchedule) });
-      setVenue({ ...result.venue, operatingSchedule: JSON.stringify(result.venue.operatingSchedule, null, 2) });
+      const result = await updateVenueConfiguration(venueId, { ...venue, operatingSchedule: parseSchedule(venue.operatingSchedule) });
+      setVenue({ ...result.venue, operatingSchedule: formatSchedule(result.venue.operatingSchedule) });
       setMessage('Venue settings saved.');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Venue settings could not be saved. Check the schedule JSON.');
@@ -135,7 +170,7 @@ export function AdminPage() {
   async function createVenue(event: FormEvent): Promise<void> {
     event.preventDefault();
     try {
-      const result = await createPlatformVenue({ ...newPlatformVenue, operatingSchedule: JSON.parse(newPlatformVenue.operatingSchedule) });
+      const result = await createPlatformVenue({ ...newPlatformVenue, operatingSchedule: parseSchedule(newPlatformVenue.operatingSchedule) });
       setPlatformVenues((current) => [...current, result.venue]);
       setNewPlatformVenue({ name: '', city: '', timezone: 'UTC', operatingSchedule: '{}' });
       setMessage('Venue created.');
@@ -265,8 +300,8 @@ export function AdminPage() {
             ))}
           </div>
           <label className="text-sm font-medium text-slate-700">
-            Operating schedule (JSON)
-            <textarea className="mt-1 min-h-24 w-full rounded-lg border border-[#d9d2c5] px-3 py-2 font-mono text-sm" value={venue.operatingSchedule} onChange={(event) => setVenue({ ...venue, operatingSchedule: event.target.value })} required />
+            Operating schedule
+            <textarea className="mt-1 min-h-24 w-full rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={venue.operatingSchedule} onChange={(event) => setVenue({ ...venue, operatingSchedule: event.target.value })} placeholder="Monday: 08:00-22:00" required />
           </label>
           <button type="submit" disabled={savingVenue} className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">{savingVenue ? 'Saving…' : 'Save venue settings'}</button>
         </form>
@@ -305,7 +340,7 @@ export function AdminPage() {
             <h3 className="text-lg font-semibold">All venues</h3>
             <form onSubmit={createVenue} className="grid gap-2 sm:grid-cols-4">
               {(['name', 'city', 'timezone'] as const).map((field) => <input key={field} className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder={field} value={newPlatformVenue[field]} onChange={(event) => setNewPlatformVenue({ ...newPlatformVenue, [field]: event.target.value })} required />)}
-              <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="schedule JSON" value={newPlatformVenue.operatingSchedule} onChange={(event) => setNewPlatformVenue({ ...newPlatformVenue, operatingSchedule: event.target.value })} required />
+              <input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" placeholder="Monday: 08:00-22:00" value={newPlatformVenue.operatingSchedule} onChange={(event) => setNewPlatformVenue({ ...newPlatformVenue, operatingSchedule: event.target.value })} required />
               <button type="submit" className="rounded-lg bg-[#14213d] px-4 py-2.5 text-sm font-medium text-white sm:col-span-4">Create venue</button>
             </form>
             <div className="space-y-3">{platformVenues.map((item) => <div key={item.id} className="grid gap-2 border-t border-[#ece7de] pt-3 sm:grid-cols-4"><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.name} onChange={(event) => setPlatformVenues((current) => current.map((venue) => venue.id === item.id ? { ...venue, name: event.target.value } : venue))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.city} onChange={(event) => setPlatformVenues((current) => current.map((venue) => venue.id === item.id ? { ...venue, city: event.target.value } : venue))} /><input className="rounded-lg border border-[#d9d2c5] px-3 py-2 text-sm" value={item.timezone} onChange={(event) => setPlatformVenues((current) => current.map((venue) => venue.id === item.id ? { ...venue, timezone: event.target.value } : venue))} /><div className="flex gap-2"><button type="button" onClick={() => void savePlatformVenue(item)} className="text-sm text-[#c45c26] hover:underline">Save</button><button type="button" onClick={() => void deleteVenue(item.id)} className="text-sm text-rose-700 hover:underline">Delete</button></div></div>)}</div>

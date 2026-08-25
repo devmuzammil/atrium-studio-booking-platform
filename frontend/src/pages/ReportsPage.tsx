@@ -4,7 +4,12 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { ReconciliationReport, VenueReportRow } from '../types';
 import { Alert, EmptyState, LoadingSpinner } from '../components/ui';
+import { StatusBadge } from '../components/StatusBadge';
 import { formatMoney } from '../utils/format';
+
+function formatIssue(issue: string | null): string {
+  return issue ? issue.replaceAll('_', ' ') : 'Unknown issue';
+}
 
 export function ReportsPage() {
   const { primaryRole, venueIds } = useAuth();
@@ -86,9 +91,41 @@ export function ReportsPage() {
               <Alert tone="warning" title={`${reconciliation.discrepancies.length} discrepancies`}>
                 Review the rows below. Do not invent or hide issues.
               </Alert>
-              <pre className="overflow-x-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-100">
-                {JSON.stringify(reconciliation.discrepancies, null, 2)}
-              </pre>
+              <div className="overflow-x-auto rounded-xl border border-[#ece7de]">
+                <table className="min-w-[900px] w-full text-left text-sm">
+                  <thead className="bg-[#f7f4ef] text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">Issue</th>
+                      <th className="px-4 py-3">Charge</th>
+                      <th className="px-4 py-3">Booking</th>
+                      <th className="px-4 py-3">Payment</th>
+                      <th className="px-4 py-3">Refunds</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconciliation.discrepancies.map((row) => (
+                      <tr key={row.chargeId} className="border-t border-[#ece7de] align-top">
+                        <td className="px-4 py-3 font-medium capitalize text-amber-900">{formatIssue(row.issue)}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{formatMoney(row.chargeAmount, row.chargeCurrency)}</p>
+                          <p className="mt-1 max-w-[180px] break-all text-xs text-slate-500">{row.chargeId}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {row.bookingStatus ? <StatusBadge status={row.bookingStatus} /> : <span className="text-slate-500">Not linked</span>}
+                          <p className="mt-1 max-w-[180px] break-all text-xs text-slate-500">{row.bookingId ?? 'No booking ID'}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {row.paymentAmount === null ? 'Not recorded' : formatMoney(row.paymentAmount, row.paymentCurrency ?? row.chargeCurrency)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p>{row.refundAmount === null ? 'Not recorded' : formatMoney(row.refundAmount, row.paymentCurrency ?? row.chargeCurrency)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{row.successfulRefundCount} successful</p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>

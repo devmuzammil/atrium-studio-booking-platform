@@ -137,8 +137,21 @@ export interface ApiErrorBody {
   message?: string;
 }
 
+export interface ReconciliationDiscrepancy {
+  chargeId: string;
+  chargeAmount: number;
+  chargeCurrency: string;
+  bookingId: string | null;
+  bookingStatus: string | null;
+  paymentAmount: number | null;
+  paymentCurrency: string | null;
+  successfulRefundCount: number;
+  refundAmount: number | null;
+  issue: string | null;
+}
+
 export interface ReconciliationReport {
-  discrepancies: Array<Record<string, unknown>>;
+  discrepancies: ReconciliationDiscrepancy[];
   capturedCharges: number;
 }
 

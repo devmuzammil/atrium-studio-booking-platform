@@ -184,7 +184,7 @@ export async function processPersistedPaymentEvent(
 export function localPaymentProvider(database: PrismaClient): PaymentProvider {
   return {
     charge: async (input) => {
-      const baseUrl = process.env.PAYGATE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+      const baseUrl = process.env.PAYGATE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://127.0.0.1:${process.env.PORT || 3000}`);
       const body = JSON.stringify({ amount_minor: input.amountMinor, currency: input.currency, reference: input.reference });
       const response = await fetch(`${baseUrl}/paygate/charges`, { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, 'x-paygate-signature': signPaygateBody(body) }, body });
       if (!response.ok) throw new Error('Paygate charge request failed');

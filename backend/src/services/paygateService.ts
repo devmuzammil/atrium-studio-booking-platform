@@ -39,7 +39,8 @@ export function verifyPaygateSignature(body: Buffer, signature: string | undefin
 }
 
 async function deliverWebhook(database: PrismaClient, chargeId: string, reference: string, amountMinor: number, currency: string): Promise<void> {
-  const callbackUrl = process.env.PAYGATE_CALLBACK_URL || `http://127.0.0.1:${process.env.PORT || 3000}/api/paygate/webhook`;
+  const callbackBaseUrl = process.env.PAYGATE_CALLBACK_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api/paygate/webhook` : `http://127.0.0.1:${process.env.PORT || 3000}/api/paygate/webhook`);
+  const callbackUrl = callbackBaseUrl;
   const body = JSON.stringify({
     charge_id: chargeId,
     reference,

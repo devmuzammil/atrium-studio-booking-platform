@@ -78,7 +78,8 @@ export function CheckoutPage() {
     return remainingMs === 0;
   }, [booking, remainingMs]);
 
-  const canPay = booking?.status === 'HELD' && booking.userId === user?.id && !holdExpired && !paying;
+  const canPay = (booking?.status === 'HELD' || booking?.status === 'PENDING_PAYMENT')
+    && booking.userId === user?.id && !holdExpired && !paying;
 
   async function onPay(): Promise<void> {
     if (!bookingId || !canPay) return;
@@ -174,7 +175,7 @@ export function CheckoutPage() {
           onClick={() => void onPay()}
           className="rounded-lg bg-[#c45c26] px-4 py-2.5 font-medium text-white hover:bg-[#a84c1f] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {paying ? 'Submitting payment…' : 'Pay with Paygate'}
+          {paying ? 'Submitting payment…' : booking.status === 'PENDING_PAYMENT' ? 'Retry payment' : 'Pay with Paygate'}
         </button>
         <Link to={`/bookings/${booking.id}`} className="rounded-lg border border-[#d9d2c5] bg-white px-4 py-2.5 text-sm font-medium text-slate-800">
           Booking detail

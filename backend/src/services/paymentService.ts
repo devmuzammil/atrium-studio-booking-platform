@@ -43,29 +43,36 @@ export async function startPayment(database: PrismaClient, provider: PaymentProv
 
   if (payment.providerChargeId) return payment;
 
-  try {
-    const charge = await provider.charge({
-      idempotencyKey: payment.idempotencyKey,
-      amountMinor: payment.amountMinor,
-      currency: payment.currency,
-      reference: bookingId,
-    });
-    const updatedPayment = await database.payment.update({ where: { id: payment.id }, data: { providerChargeId: charge.chargeId } });
-    if (process.env.VERCEL) {
-      await processPaymentWebhook(database, {
-        deliveryId: randomUUID(),
-        chargeId: charge.chargeId,
-        reference: bookingId,
-        event: 'charge.succeeded',
+  let charge: { chargeId: string } | undefined;
+  for (let attempt = 0; attempt < 3 && !charge; attempt += 1) {
+    try {
+      charge = await provider.charge({
+        idempotencyKey: payment.idempotencyKey,
         amountMinor: payment.amountMinor,
         currency: payment.currency,
-        occurredAt: new Date(),
-      }, provider);
+        reference: bookingId,
+      });
+    } catch (error) {
+      if (attempt === 2) {
+        console.error('Paygate charge remains retryable:', error);
+      }
     }
-    return updatedPayment;
-  } catch (error) {
-    throw error;
   }
+  if (!charge) return payment;
+
+  const updatedPayment = await database.payment.update({ where: { id: payment.id }, data: { providerChargeId: charge.chargeId } });
+  if (process.env.VERCEL) {
+    await processPaymentWebhook(database, {
+      deliveryId: randomUUID(),
+      chargeId: charge.chargeId,
+      reference: bookingId,
+      event: 'charge.succeeded',
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      occurredAt: new Date(),
+    }, provider);
+  }
+  return updatedPayment;
 }
 
 async function processPaymentWebhookOnce(

@@ -205,10 +205,13 @@ and [docs/performance/explain-availability-after.txt](docs/performance/explain-a
 
 ## Known Issues and What I Did Not Finish
 
-- A previous Paygate chaos burst produced Nginx `502` responses and requires a
-  clean rerun before it can be called verified.
-- `LOAD_TEST.md` does not contain reproducible p50/p95/p99 or `EXPLAIN ANALYZE`
-  captures. Those numbers must not be fabricated.
+- Paygate chaos includes transient failures, duplicate deliveries, delayed
+  deliveries, and invalid signatures. The required 25% webhook-before-response
+  race and cross-charge out-of-order delivery are not fully simulated.
+- A webhook arriving before its Atrium payment row is created is persisted as
+  an unknown event, but the live webhook path currently marks its job complete;
+  reconciliation can identify the discrepancy, but automatic retry is not yet
+  guaranteed for this race.
 - Webhook verification, event persistence, and booking application remain in
   the webhook request; events are durable but there is no separate queue worker
   for that path.

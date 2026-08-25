@@ -4,7 +4,7 @@
 
 Atrium is a multi-venue booking system for time-based rooms and quantity-based
 equipment. Correctness under concurrent requests and unreliable payment delivery
-has priority over Tier 2 and Tier 3 feature breadth.
+has priority over optional Tier 3 feature breadth.
 
 | Layer | Choice | Responsibility |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ has priority over Tier 2 and Tier 3 feature breadth.
 | ORM | Prisma ORM and Prisma Client | Typed models, migrations, transactions, and ordinary CRUD |
 | Database-specific SQL | Prisma migrations and tagged `$queryRaw` queries | Range constraints, GiST indexes, interval sweeps, and row locks |
 | Jobs | PostgreSQL-backed polling loops | Hold expiry, booking completion, and pending refund retries |
-| Deployment | Three stateless Express replicas behind a load balancer | Horizontal request handling |
+| Deployment | Local Compose: three stateless Express replicas behind Nginx; hosted demo: Vercel serverless function | Local multi-process proof and public demo deployment |
 
 I chose Express and React because they are familiar, widely deployable, and
 keep the API and browser concerns separate. Neon provides managed PostgreSQL
@@ -60,6 +60,7 @@ erDiagram
     BOOKING ||--o{ PAYMENT : has
     BOOKING ||--o{ AUDIT_EVENT : records
     PAYMENT ||--o{ PAYMENT_EVENT : receives
+    PAYMENT ||--o{ REFUND : produces
     VENUE ||--o{ CANCELLATION_POLICY : configures
 
     VENUE {
@@ -136,6 +137,15 @@ erDiagram
       text provider_charge_id
       jsonb payload
       boolean signature_valid
+    }
+    REFUND {
+      uuid id PK
+      uuid booking_id FK
+      uuid payment_id FK
+      text idempotency_key UK
+      text provider_refund_id UK
+      int amount_minor
+      text status
     }
     CANCELLATION_POLICY {
       uuid id PK
@@ -298,10 +308,11 @@ No duplicate active room bookings or equipment over-allocation occurred, and
 all three replicas participated in both bursts. The proof does not claim that
 the public Vercel deployment has this three-replica Docker topology.
 
-The Paygate chaos burst was executed with `PAYGATE_CHAOS=on`, but remains
-unverified because an earlier 100-attempt run produced Nginx `502` responses
-and one retried `500`. Load-test measurements and `EXPLAIN ANALYZE` captures
-remain unverified.
+Paygate chaos coverage is partial: transient failures, duplicate deliveries,
+delayed deliveries, and invalid signatures are implemented and covered by
+tests. The exact 25% webhook-before-response race and cross-charge
+out-of-order delivery are not fully simulated. Full-profile benchmark and
+`EXPLAIN ANALYZE` evidence is recorded in `LOAD_TEST.md`.
 
 ## 5. Validation and Booking Rules
 
@@ -466,9 +477,10 @@ credentials are redacted.
 
 `/health` checks PostgreSQL connectivity and Paygate persistence. Hold expiry,
 booking completion, and pending-refund retry loops run in each API process using
-database locking. Webhook signature verification and payment transitions are
-currently performed inline; `payment_events` and pending refunds remain
-durable and queryable for retry/reconciliation.
+database locking. Webhook signature verification and the first business-effect
+attempt are performed inline for the current deployment. The event and a
+durable `webhook_jobs` row are persisted before processing; the worker can retry
+jobs when processing fails.
 
 ## 11. Assumptions
 
@@ -491,10 +503,12 @@ durable and queryable for retry/reconciliation.
   success event; a `202 processing` response alone never confirms a booking.
 - Unknown provider events remain queryable until reconciliation resolves them.
 - Health is exposed at `GET /health` (not `/api/health`).
-- Webhook handling verifies the HMAC, writes `payment_events`, then applies the
+- Webhook handling verifies the HMAC, writes `payment_events`, and attempts the
   booking/payment transition before returning. That is still one request; the
-  durable event row is what makes duplicate delivery safe. A fully asynchronous
-  webhook queue is not implemented.
+  durable event and job rows make duplicate delivery safe and provide a retry
+  path for processing failures. The initial webhook path is not fully
+  asynchronous, and an unknown-charge event is acknowledged and relies on
+  reconciliation/manual recovery if the provider record is not yet available.
 
 ## 12. What Breaks at 100x
 

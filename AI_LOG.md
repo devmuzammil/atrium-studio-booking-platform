@@ -98,9 +98,10 @@
   initially returned success without a Paygate dependency check and now checks
   both persistence dependencies. Unknown-charge handling required preserving
   its migration without a provider foreign key.
-- Operational limitation: no public deployment or full-profile benchmark was
-  claimed because no hosting/load-test environment was configured. The shared
-  demo/full seed path and CI workflow are present for those environments.
+- Operational limitation at that point in the build: no public deployment or
+  full-profile benchmark had yet been claimed because no hosting/load-test
+  environment was configured. These were verified later and recorded in the
+  final verification entry below.
 - Test issues discovered: remote Neon lock contention once exceeded the
   default interactive transaction timeout, so webhook processing now retries
   only transient Prisma transaction errors. Test cleanup also had to include
@@ -134,7 +135,9 @@
   with an unused 10-minute timestamp; `POST /checkout` now extends the hold.
   Policy had no write API; versioned PUT was added. A report UUID negative test
   and an end-to-end hold-pay-confirm test were added.
-- Not claimed: k6 numbers or full-profile benchmark captures.
+- At that point in the build, k6 numbers and full-profile benchmark captures
+  were not yet claimed; the later local benchmark is documented in
+  `LOAD_TEST.md`.
 
 ## Final verification
 
@@ -152,8 +155,11 @@
 - Issue 5 follow-up: verified the explicit provider progression rules for
   processing, failure, recovery to success, duplicate delivery, terminal
   success, and late success after expiry. Added duplicate-failure coverage.
-- Paygate chaos, full-profile latency numbers, and `EXPLAIN ANALYZE` captures
-  remain unverified.
+- Paygate chaos remains only partially verified: transient failures, duplicate
+  deliveries, delayed deliveries, and invalid signatures are covered, while
+  the exact 25% response race and cross-charge out-of-order delivery are not
+  fully simulated. Full-profile latency numbers and `EXPLAIN ANALYZE` captures
+  were verified later and are documented in `LOAD_TEST.md`.
 
 
 ## Render backend packaging
